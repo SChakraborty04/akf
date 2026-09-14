@@ -1,0 +1,266 @@
+export const translations = {
+  en: {
+    // App & Header
+    appTitle: "Lakshi Group SHG",
+    groupName: "Lakshi Group",
+    groupHindiName: "Lakshi Group",
+    logout: "Logout",
+    welcome: "Welcome",
+    loginSubtitle: "Self Help Group Finance Management",
+    username: "Username",
+    password: "Password",
+    loginBtn: "Login to Group",
+    loginError: "Invalid username or password. Use lakshigroup / lakshigroup",
+
+    // Navigation Tabs
+    navHome: "Home",
+    navDeposits: "Deposits",
+    navLoans: "Loans",
+    navRepayments: "Repayments",
+    navLedger: "Ledger",
+    navProfile: "Profile",
+
+    // Summary Card
+    totalSaving: "Total Saving",
+    totalLoan: "Total Loan",
+    avlBalance: "Avl Balance",
+    interestReceivable: "Interest Receivable",
+
+    // Quick Actions
+    quickActions: "Quick Actions",
+    addDeposit: "Add Deposit",
+    createLoan: "Create Loan",
+    loanRepayment: "Loan Repayment",
+
+    // Dashboard & Recent Transactions
+    recentTransactions: "Recent Transactions",
+    viewAll: "View All",
+    noTransactions: "No transactions recorded yet.",
+
+    // Deposits Page
+    depositsTitle: "Group Savings & Deposits",
+    totalDeposits: "Total Deposits in Selected Period",
+    allTimeDeposits: "All-Time Group Savings",
+    depositList: "Deposit Records",
+    noDeposits: "No deposit records found.",
+    note: "Note",
+    depositNotePlaceholder: "Monthly Member Savings, Special Deposit, etc.",
+
+    // Loans Page
+    loansTitle: "Group Loans Disbursed",
+    totalLoans: "Total Active Loan Principal",
+    allLoans: "All Loans",
+    loanList: "Disbursed Loans",
+    noLoans: "No loan records found.",
+    principal: "Principal Amount",
+    issueDate: "Issue Date",
+    interestRate: "Interest Rate",
+    status: "Status",
+    statusActive: "Active",
+    statusPaid: "Fully Paid",
+    monthlyInterestBreakdown: "Monthly Accrued Interest Breakdown",
+    elapsedMonths: "Elapsed Months",
+    totalAccruedInterest: "Total Accrued Interest",
+    unpaidInterest: "Unpaid Interest Due",
+
+    // Repayments Page
+    repaymentsTitle: "Loan Repayments History",
+    totalRepayments: "Total Repayments Received",
+    repaymentsList: "Repayment Logs",
+    noRepayments: "No repayment records found.",
+    selectLoan: "Select Loan for Repayment",
+    amountPaid: "Amount Paid",
+    interestDeducted: "Interest Deducted",
+    principalDeducted: "Principal Deducted",
+    remainingPrincipal: "Remaining Principal",
+
+    // Ledger Page
+    ledgerTitle: "Group Financial Master Ledger",
+    allMovements: "Chronological Financial Movements",
+    credit: "Credit (Inflow)",
+    debit: "Debit (Outflow)",
+    noLedger: "No ledger records found.",
+
+    // Profile Page
+    profileTitle: "Group & Member Profile",
+    groupDetails: "Group Information",
+    address: "Address",
+    memberCount: "Member Count",
+    stampValue: "Stamp Value",
+    cycleNo: "Cycle Number",
+    cycleStart: "Cycle Start Date",
+    cycleEnd: "Cycle End Date",
+    cycleWeek: "Cycle Duration (Weeks)",
+    meetingDay: "Meeting Day",
+    groupMembers: "Group Members",
+    memberDetails: "Member Personal Profile",
+    hhNo: "Household (HH) No",
+    memberName: "Member Name",
+    husbandName: "Husband's Name",
+    idNo: "Aadhaar / ID No",
+    age: "Age",
+    caste: "Caste / Category",
+    mobileNo: "Mobile Number",
+    education: "Education Level",
+    agriLand: "Agricultural Land",
+    irrigatedLand: "Irrigated Land",
+    goatCount: "Goat Count",
+    animalCount: "Cattle / Animal Count",
+    familySize: "Family Members",
+    incomeSource: "Source of Income",
+
+    // Date Filters & Actions
+    filterByDate: "Filter by Date Range",
+    startDate: "Start Date",
+    endDate: "End Date",
+    clearFilter: "Clear Filter",
+    showingAll: "Showing All Records",
+
+    // Modals & Form Buttons
+    submit: "Save Transaction",
+    cancel: "Cancel",
+    close: "Close",
+    amount: "Amount (₹)",
+    date: "Date",
+    description: "Description / Notes",
+    resetDataBtn: "Reset App to Seed Data",
+    resetConfirm: "Are you sure you want to reset all data to default seed data?",
+
+    // PWA Prompt
+    iosInstallTitle: "Install Lakshi Group App",
+    iosInstallText: "To install this web app on your iOS device: tap the Share button",
+    iosInstallStep2: "and select 'Add to Home Screen'."
+  },
+  hi: {
+    // App & Header
+    appTitle: "लक्ष्मी समूह एसएचजी",
+    groupName: "लक्ष्मी समूह",
+    groupHindiName: "लक्ष्मी समूह",
+    logout: "लॉगआउट",
+    welcome: "स्वागत है",
+    loginSubtitle: "स्वयं सहायता समूह वित्त प्रबंधन",
+    username: "उपयोगकर्ता का नाम",
+    password: "पासवर्ड",
+    loginBtn: "समूह में लॉगिन करें",
+    loginError: "गलत उपयोगकर्ता नाम या पासवर्ड। lakshigroup / lakshigroup का उपयोग करें",
+
+    // Navigation Tabs
+    navHome: "मुख्य",
+    navDeposits: "बचत",
+    navLoans: "ऋण",
+    navRepayments: "ऋण वापसी",
+    navLedger: "बहीखाता",
+    navProfile: "प्रोफ़ाइल",
+
+    // Summary Card
+    totalSaving: "कुल बचत",
+    totalLoan: "कुल ऋण",
+    avlBalance: "उपलब्ध शेष",
+    interestReceivable: "प्राप्य ब्याज",
+
+    // Quick Actions
+    quickActions: "त्वरित कार्य",
+    addDeposit: "बचत जोड़ें",
+    createLoan: "ऋण दें",
+    loanRepayment: "ऋण चुकाएं",
+
+    // Dashboard & Recent Transactions
+    recentTransactions: "हाल के लेनदेन",
+    viewAll: "सभी देखें",
+    noTransactions: "अभी तक कोई लेनदेन दर्ज नहीं किया गया है।",
+
+    // Deposits Page
+    depositsTitle: "समूह बचत एवं जमा",
+    totalDeposits: "चयनित अवधि में कुल जमा",
+    allTimeDeposits: "कुल समूह बचत",
+    depositList: "बचत रिकॉर्ड",
+    noDeposits: "कोई बचत रिकॉर्ड नहीं मिला।",
+    note: "विवरण",
+    depositNotePlaceholder: "मासिक सदस्य बचत, विशेष जमा, आदि।",
+
+    // Loans Page
+    loansTitle: "दिए गए समूह ऋण",
+    totalLoans: "कुल सक्रिय ऋण मूलधन",
+    allLoans: "सभी ऋण",
+    loanList: "वितरित ऋण विवरण",
+    noLoans: "कोई ऋण रिकॉर्ड नहीं मिला।",
+    principal: "मूलधन राशि",
+    issueDate: "ऋण तिथि",
+    interestRate: "ब्याज दर",
+    status: "स्थिति",
+    statusActive: "सक्रिय",
+    statusPaid: "पूर्ण चुकता",
+    monthlyInterestBreakdown: "मासिक अर्जित ब्याज विवरण (2% प्रतिमाह)",
+    elapsedMonths: "बीते हुए महीने",
+    totalAccruedInterest: "कुल अर्जित ब्याज",
+    unpaidInterest: "अदत्त ब्याज देय",
+
+    // Repayments Page
+    repaymentsTitle: "ऋण अदायगी का इतिहास",
+    totalRepayments: "प्राप्त कुल ऋण वापसी",
+    repaymentsList: "ऋण वापसी रिकॉर्ड",
+    noRepayments: "कोई अदायगी रिकॉर्ड नहीं मिला।",
+    selectLoan: "ऋण चुनें",
+    amountPaid: "भुगतान की गई राशि",
+    interestDeducted: "ब्याज कटौती",
+    principalDeducted: "मूलधन कटौती",
+    remainingPrincipal: "शेष मूलधन",
+
+    // Ledger Page
+    ledgerTitle: "समूह वित्तीय मास्टर बहीखाता",
+    allMovements: "क्रमानुक्रमिक वित्तीय लेनदेन",
+    credit: "जमा (आवक)",
+    debit: "निकासी / ऋण (जावक)",
+    noLedger: "कोई बहीखाता रिकॉर्ड नहीं मिला।",
+
+    // Profile Page
+    profileTitle: "समूह और सदस्य प्रोफ़ाइल",
+    groupDetails: "समूह की जानकारी",
+    address: "पता",
+    memberCount: "सदस्य संख्या",
+    stampValue: "स्टाम्प मूल्य",
+    cycleNo: "चक्र संख्या",
+    cycleStart: "चक्र प्रारंभ तिथि",
+    cycleEnd: "चक्र समाप्ति तिथि",
+    cycleWeek: "चक्र अवधि (सप्ताह)",
+    meetingDay: "बैठक का दिन",
+    groupMembers: "समूह सदस्य (12)",
+    memberDetails: "सदस्य व्यक्तिगत विवरण",
+    hhNo: "गृह (HH) संख्या",
+    memberName: "सदस्य का नाम",
+    husbandName: "पति का नाम",
+    idNo: "आधार / पहचान पत्र सं.",
+    age: "उम्र",
+    caste: "जाति / वर्ग",
+    mobileNo: "मोबाइल नंबर",
+    education: "शिक्षा स्तर",
+    agriLand: "कृषि भूमि",
+    irrigatedLand: "सिंचित भूमि",
+    goatCount: "बकरियों की संख्या",
+    animalCount: "मवेशियों की संख्या",
+    familySize: "परिवार के सदस्य",
+    incomeSource: "आय का स्रोत",
+
+    // Date Filters & Actions
+    filterByDate: "तिथि सीमा के अनुसार फ़िल्टर करें",
+    startDate: "प्रारंभ तिथि",
+    endDate: "अंतिम तिथि",
+    clearFilter: "फ़िल्टर हटाएं",
+    showingAll: "सभी रिकॉर्ड दिखाए जा रहे हैं",
+
+    // Modals & Form Buttons
+    submit: "लेनदेन सहेजें",
+    cancel: "रद्द करें",
+    close: "बंद करें",
+    amount: "राशि (₹)",
+    date: "तिथि",
+    description: "विवरण / नोट्स",
+    resetDataBtn: "ऐप को शुरुआती डेटा पर रीसेट करें",
+    resetConfirm: "क्या आप वाकई सभी डेटा को डिफ़ॉल्ट डेटा पर रीसेट करना चाहते हैं?",
+
+    // PWA Prompt
+    iosInstallTitle: "लक्ष्मी समूह ऐप इंस्टॉल करें",
+    iosInstallText: "इस वेब ऐप को अपने iPhone/iPad पर इंस्टॉल करने के लिए: शेयर बटन पर टैप करें",
+    iosInstallStep2: "और 'Add to Home Screen' चुनें।"
+  }
+};
