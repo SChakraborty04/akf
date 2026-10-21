@@ -11,28 +11,164 @@ export const INITIAL_SEED_DATA = {
     cycleWeek: 50,
     meetingDay: 'Monday'
   },
+  loanShapes: [
+    { id: 'pentagon', name: 'Pentagon', symbol: 'pentagon', value: 500, color: '#0d9488' },
+    { id: 'circle', name: 'Circle', symbol: 'circle', value: 1000, color: '#2563eb' },
+    { id: 'triangle', name: 'Triangle', symbol: 'triangle', value: 3000, color: '#d97706' },
+    { id: 'star', name: 'Star', symbol: 'star', value: 5000, color: '#7c3aed' },
+    { id: 'sun', name: 'Sun', symbol: 'sun', value: 10000, color: '#ea580c' }
+  ],
   deposits: [
-    { id: 'd1', amount: 5000, date: '2026-01-10', note: 'Monthly Member Savings' },
-    { id: 'd2', amount: 6000, date: '2026-02-10', note: 'Monthly Member Savings' },
-    { id: 'd3', amount: 6000, date: '2026-03-10', note: 'Monthly Member Savings' },
-    { id: 'd4', amount: 6000, date: '2026-04-10', note: 'Monthly Member Savings' }
+    {
+      id: 'd1',
+      amount: 5000,
+      totalStamps: 100,
+      date: '2026-01-10',
+      note: 'Monthly Member Savings',
+      memberDeposits: [
+        { memberId: 'm1', memberName: 'Sunita Devi', stamps: 5, amount: 250 },
+        { memberId: 'm2', memberName: 'Meena Devi', stamps: 4, amount: 200 },
+        { memberId: 'm3', memberName: 'Anita Sharma', stamps: 5, amount: 250 },
+        { memberId: 'm4', memberName: 'Rekha Kumari', stamps: 2, amount: 100 },
+        { memberId: 'm5', memberName: 'Geeta Devi', stamps: 3, amount: 150 },
+        { memberId: 'm6', memberName: 'Savitri Devi', stamps: 5, amount: 250 },
+        { memberId: 'm7', memberName: 'Manju Devi', stamps: 4, amount: 200 },
+        { memberId: 'm8', memberName: 'Pushpa Devi', stamps: 3, amount: 150 },
+        { memberId: 'm9', memberName: 'Phoolmati Devi', stamps: 2, amount: 100 },
+        { memberId: 'm10', memberName: 'Chinta Devi', stamps: 2, amount: 100 },
+        { memberId: 'm11', memberName: 'Shanti Devi', stamps: 4, amount: 200 },
+        { memberId: 'm12', memberName: 'Kanti Devi', stamps: 4, amount: 200 }
+      ]
+    },
+    {
+      id: 'd2',
+      amount: 6000,
+      totalStamps: 120,
+      date: '2026-02-10',
+      note: 'Monthly Member Savings',
+      memberDeposits: [
+        { memberId: 'm1', memberName: 'Sunita Devi', stamps: 5, amount: 250 },
+        { memberId: 'm2', memberName: 'Meena Devi', stamps: 5, amount: 250 },
+        { memberId: 'm3', memberName: 'Anita Sharma', stamps: 5, amount: 250 },
+        { memberId: 'm4', memberName: 'Rekha Kumari', stamps: 5, amount: 250 },
+        { memberId: 'm5', memberName: 'Geeta Devi', stamps: 5, amount: 250 },
+        { memberId: 'm6', memberName: 'Savitri Devi', stamps: 5, amount: 250 },
+        { memberId: 'm7', memberName: 'Manju Devi', stamps: 5, amount: 250 },
+        { memberId: 'm8', memberName: 'Pushpa Devi', stamps: 5, amount: 250 },
+        { memberId: 'm9', memberName: 'Phoolmati Devi', stamps: 5, amount: 250 },
+        { memberId: 'm10', memberName: 'Chinta Devi', stamps: 5, amount: 250 },
+        { memberId: 'm11', memberName: 'Shanti Devi', stamps: 5, amount: 250 },
+        { memberId: 'm12', memberName: 'Kanti Devi', stamps: 5, amount: 250 }
+      ]
+    },
+    {
+      id: 'd3',
+      amount: 6000,
+      totalStamps: 120,
+      date: '2026-03-10',
+      note: 'Monthly Member Savings',
+      memberDeposits: [
+        { memberId: 'm1', memberName: 'Sunita Devi', stamps: 5, amount: 250 },
+        { memberId: 'm2', memberName: 'Meena Devi', stamps: 5, amount: 250 },
+        { memberId: 'm3', memberName: 'Anita Sharma', stamps: 5, amount: 250 },
+        { memberId: 'm4', memberName: 'Rekha Kumari', stamps: 5, amount: 250 },
+        { memberId: 'm5', memberName: 'Geeta Devi', stamps: 5, amount: 250 },
+        { memberId: 'm6', memberName: 'Savitri Devi', stamps: 5, amount: 250 },
+        { memberId: 'm7', memberName: 'Manju Devi', stamps: 5, amount: 250 },
+        { memberId: 'm8', memberName: 'Pushpa Devi', stamps: 5, amount: 250 },
+        { memberId: 'm9', memberName: 'Phoolmati Devi', stamps: 5, amount: 250 },
+        { memberId: 'm10', memberName: 'Chinta Devi', stamps: 5, amount: 250 },
+        { memberId: 'm11', memberName: 'Shanti Devi', stamps: 5, amount: 250 },
+        { memberId: 'm12', memberName: 'Kanti Devi', stamps: 5, amount: 250 }
+      ]
+    },
+    {
+      id: 'd4',
+      amount: 6000,
+      totalStamps: 120,
+      date: '2026-04-10',
+      note: 'Monthly Member Savings',
+      memberDeposits: [
+        { memberId: 'm1', memberName: 'Sunita Devi', stamps: 5, amount: 250 },
+        { memberId: 'm2', memberName: 'Meena Devi', stamps: 5, amount: 250 },
+        { memberId: 'm3', memberName: 'Anita Sharma', stamps: 5, amount: 250 },
+        { memberId: 'm4', memberName: 'Rekha Kumari', stamps: 5, amount: 250 },
+        { memberId: 'm5', memberName: 'Geeta Devi', stamps: 5, amount: 250 },
+        { memberId: 'm6', memberName: 'Savitri Devi', stamps: 5, amount: 250 },
+        { memberId: 'm7', memberName: 'Manju Devi', stamps: 5, amount: 250 },
+        { memberId: 'm8', memberName: 'Pushpa Devi', stamps: 5, amount: 250 },
+        { memberId: 'm9', memberName: 'Phoolmati Devi', stamps: 5, amount: 250 },
+        { memberId: 'm10', memberName: 'Chinta Devi', stamps: 5, amount: 250 },
+        { memberId: 'm11', memberName: 'Shanti Devi', stamps: 5, amount: 250 },
+        { memberId: 'm12', memberName: 'Kanti Devi', stamps: 5, amount: 250 }
+      ]
+    }
   ],
   loans: [
-    { id: 'l1', principalAmount: 20000, date: '2026-01-15', monthlyInterestRate: 0.02, status: 'Active' },
-    { id: 'l2', principalAmount: 15000, date: '2026-02-01', monthlyInterestRate: 0.02, status: 'Active' }
+    {
+      id: 'l1',
+      memberId: 'm1',
+      memberName: 'Sunita Devi',
+      principalAmount: 20000,
+      date: '2026-01-15',
+      monthlyInterestRate: 0.02,
+      status: 'Active',
+      stamps: [
+        { shape: 'sun', value: 10000 },
+        { shape: 'sun', value: 10000 }
+      ]
+    },
+    {
+      id: 'l2',
+      memberId: 'm2',
+      memberName: 'Meena Devi',
+      principalAmount: 15000,
+      date: '2026-02-01',
+      monthlyInterestRate: 0.02,
+      status: 'Active',
+      stamps: [
+        { shape: 'sun', value: 10000 },
+        { shape: 'star', value: 5000 }
+      ]
+    }
   ],
   repayments: [
-    { id: 'r1', loanId: 'l1', amountPaid: 3000, interestDeducted: 400, principalDeducted: 2600, date: '2026-02-15' },
-    { id: 'r2', loanId: 'l1', amountPaid: 2000, interestDeducted: 350, principalDeducted: 1650, date: '2026-03-15' }
+    {
+      id: 'r1',
+      loanId: 'l1',
+      memberId: 'm1',
+      memberName: 'Sunita Devi',
+      amountPaid: 3000,
+      interestDeducted: 400,
+      principalDeducted: 2600,
+      date: '2026-02-15',
+      stamps: [
+        { shape: 'sun', value: 200 },
+        { shape: 'sun', value: 200 }
+      ]
+    },
+    {
+      id: 'r2',
+      loanId: 'l1',
+      memberId: 'm1',
+      memberName: 'Sunita Devi',
+      amountPaid: 2000,
+      interestDeducted: 350,
+      principalDeducted: 1650,
+      date: '2026-03-15',
+      stamps: [
+        { shape: 'sun', value: 200 }
+      ]
+    }
   ],
   ledger: [
-    { id: 'led1', type: 'Deposit', amount: 5000, date: '2026-01-10', description: 'Group Monthly Deposit' },
-    { id: 'led2', type: 'Loan', amount: 20000, date: '2026-01-15', description: 'Group Loan Disbursed' },
-    { id: 'led3', type: 'Deposit', amount: 6000, date: '2026-02-10', description: 'Group Monthly Deposit' },
-    { id: 'led4', type: 'Repayment', amount: 3000, date: '2026-02-15', description: 'Group Loan Repayment' },
-    { id: 'led5', type: 'Deposit', amount: 6000, date: '2026-03-10', description: 'Group Monthly Deposit' },
-    { id: 'led6', type: 'Repayment', amount: 2000, date: '2026-03-15', description: 'Group Loan Repayment' },
-    { id: 'led7', type: 'Deposit', amount: 6000, date: '2026-04-10', description: 'Group Monthly Deposit' }
+    { id: 'led1', type: 'Deposit', amount: 5000, date: '2026-01-10', description: 'Monthly Savings (12 members, 100 stamps)' },
+    { id: 'led2', type: 'Loan', amount: 20000, date: '2026-01-15', memberId: 'm1', memberName: 'Sunita Devi', description: 'Loan Disbursed - Sunita Devi (2x Sun)' },
+    { id: 'led3', type: 'Deposit', amount: 6000, date: '2026-02-10', description: 'Monthly Savings (12 members, 120 stamps)' },
+    { id: 'led4', type: 'Repayment', amount: 3000, date: '2026-02-15', memberId: 'm1', memberName: 'Sunita Devi', description: 'Loan Repayment - Sunita Devi (Loan #l1)' },
+    { id: 'led5', type: 'Deposit', amount: 6000, date: '2026-03-10', description: 'Monthly Savings (12 members, 120 stamps)' },
+    { id: 'led6', type: 'Repayment', amount: 2000, date: '2026-03-15', memberId: 'm1', memberName: 'Sunita Devi', description: 'Loan Repayment - Sunita Devi (Loan #l1)' },
+    { id: 'led7', type: 'Deposit', amount: 6000, date: '2026-04-10', description: 'Monthly Savings (12 members, 120 stamps)' }
   ],
   members: [
     {

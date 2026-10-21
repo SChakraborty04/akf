@@ -12,14 +12,39 @@ export function DataProvider({ children }) {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure all keys exist
+        // Ensure all keys exist and migrate if loanShapes missing
+        const members = parsed.members || INITIAL_SEED_DATA.members;
+        
+        // Ensure loans have memberId/memberName
+        const loans = (parsed.loans || INITIAL_SEED_DATA.loans).map(l => {
+          if (!l.memberId) {
+            const fallbackMember = members[0] || { id: 'm1', name: 'Sunita Devi' };
+            return { ...l, memberId: fallbackMember.id, memberName: fallbackMember.name };
+          }
+          return l;
+        });
+
+        // Ensure repayments have memberId/memberName
+        const repayments = (parsed.repayments || INITIAL_SEED_DATA.repayments).map(r => {
+          if (!r.memberId) {
+            const associatedLoan = loans.find(l => l.id === r.loanId);
+            return {
+              ...r,
+              memberId: associatedLoan?.memberId || 'm1',
+              memberName: associatedLoan?.memberName || 'Sunita Devi'
+            };
+          }
+          return r;
+        });
+
         return {
           groupProfile: parsed.groupProfile || INITIAL_SEED_DATA.groupProfile,
+          loanShapes: parsed.loanShapes || INITIAL_SEED_DATA.loanShapes,
           deposits: parsed.deposits || INITIAL_SEED_DATA.deposits,
-          loans: parsed.loans || INITIAL_SEED_DATA.loans,
-          repayments: parsed.repayments || INITIAL_SEED_DATA.repayments,
+          loans,
+          repayments,
           ledger: parsed.ledger || INITIAL_SEED_DATA.ledger,
-          members: parsed.members || INITIAL_SEED_DATA.members
+          members
         };
       }
     } catch (e) {
@@ -39,48 +64,83 @@ export function DataProvider({ children }) {
 
   // CRUD Actions
 
-  // 1. Add Group Deposit
-  const addDeposit = ({ amount, date, note }) => {
+  // 1. Add Group/Member Deposit
+  const addDeposit = ({ date, note, memberDeposits, totalStamps, totalAmount, amount }) => {
     const depositId = 'dep-' + Date.now();
-    const ledgerId = 'led-' + Date.now();
-    const depositAmount = Number(amount);
     const depositDate = date || new Date().toISOString().split('T')[0];
+    const finalAmount = Number(totalAmount ?? amount ?? 0);
+    const finalStamps = Number(totalStamps ?? 0);
 
     const newDeposit = {
       id: depositId,
-      amount: depositAmount,
+      amount: finalAmount,
+      totalStamps: finalStamps,
       date: depositDate,
-      note: note || 'Group Deposit'
+      note: note || 'Meeting Member Savings',
+      memberDeposits: memberDeposits || []
     };
 
-    const newLedgerEntry = {
-      id: ledgerId,
-      type: 'Deposit',
-      amount: depositAmount,
-      date: depositDate,
-      description: note || 'Group Monthly Deposit'
-    };
+    // Maintain member-level ledger entries
+    const contributingMembers = (memberDeposits || []).filter(m => Number(m.stamps) > 0);
+    let newLedgerEntries = [];
+
+    if (contributingMembers.length > 0) {
+      newLedgerEntries = contributingMembers.map((m, idx) => ({
+        id: `led-${Date.now()}-${idx}-${m.memberId}`,
+        type: 'Deposit',
+        amount: Number(m.amount),
+        date: depositDate,
+        memberId: m.memberId,
+        memberName: m.memberName,
+        stamps: m.stamps,
+        depositId: depositId,
+        description: `Deposit - ${m.memberName} (${m.stamps} ${m.stamps === 1 ? 'stamp' : 'stamps'})`
+      }));
+    } else {
+      newLedgerEntries = [{
+        id: 'led-' + Date.now(),
+        type: 'Deposit',
+        amount: finalAmount,
+        date: depositDate,
+        depositId: depositId,
+        description: note || 'Group Monthly Deposit'
+      }];
+    }
 
     setData(prev => ({
       ...prev,
       deposits: [newDeposit, ...prev.deposits],
-      ledger: [newLedgerEntry, ...prev.ledger]
+      ledger: [...newLedgerEntries, ...prev.ledger]
     }));
   };
 
-  // 2. Create Group Loan
-  const createLoan = ({ principalAmount, date }) => {
+  // 2. Create Member Loan
+  const createLoan = ({ memberId, memberName, principalAmount, date, stamps }) => {
     const loanId = 'loan-' + Date.now();
     const ledgerId = 'led-' + Date.now();
     const loanPrincipal = Number(principalAmount);
     const loanDate = date || new Date().toISOString().split('T')[0];
 
+    // Find member name if not passed
+    const member = data.members.find(m => m.id === memberId);
+    const resolvedMemberName = memberName || member?.name || 'Member';
+
+    const stampsSummary = (stamps || [])
+      .map(s => {
+        const shapeName = s.shape ? (s.shape.charAt(0).toUpperCase() + s.shape.slice(1)) : 'Stamp';
+        return shapeName;
+      })
+      .join(', ');
+
     const newLoan = {
       id: loanId,
+      memberId,
+      memberName: resolvedMemberName,
       principalAmount: loanPrincipal,
       date: loanDate,
       monthlyInterestRate: 0.02,
-      status: 'Active'
+      status: 'Active',
+      stamps: stamps || []
     };
 
     const newLedgerEntry = {
@@ -88,7 +148,10 @@ export function DataProvider({ children }) {
       type: 'Loan',
       amount: loanPrincipal,
       date: loanDate,
-      description: 'Group Loan Disbursed'
+      memberId,
+      memberName: resolvedMemberName,
+      loanId: loanId,
+      description: `Loan Disbursed - ${resolvedMemberName}${stampsSummary ? ` (${stampsSummary})` : ''}`
     };
 
     setData(prev => ({
@@ -99,7 +162,7 @@ export function DataProvider({ children }) {
   };
 
   // 3. Add Loan Repayment
-  const addRepayment = ({ loanId, amountPaid, date }) => {
+  const addRepayment = ({ loanId, memberId, memberName, amountPaid, date, stamps }) => {
     const repaymentDate = date || new Date().toISOString().split('T')[0];
     const targetLoan = data.loans.find(l => l.id === loanId);
     
@@ -111,13 +174,20 @@ export function DataProvider({ children }) {
     const repaymentId = 'rep-' + Date.now();
     const ledgerId = 'led-' + Date.now();
 
+    const resolvedMemberId = memberId || targetLoan.memberId;
+    const resolvedMember = data.members.find(m => m.id === resolvedMemberId);
+    const resolvedMemberName = memberName || targetLoan.memberName || resolvedMember?.name || 'Member';
+
     const newRepayment = {
       id: repaymentId,
       loanId: loanId,
+      memberId: resolvedMemberId,
+      memberName: resolvedMemberName,
       amountPaid: waterfall.amountPaid,
       interestDeducted: waterfall.interestDeducted,
       principalDeducted: waterfall.principalDeducted,
-      date: repaymentDate
+      date: repaymentDate,
+      stamps: stamps || []
     };
 
     const newLedgerEntry = {
@@ -125,7 +195,10 @@ export function DataProvider({ children }) {
       type: 'Repayment',
       amount: waterfall.amountPaid,
       date: repaymentDate,
-      description: `Loan Repayment (Int: ₹${waterfall.interestDeducted}, Prin: ₹${waterfall.principalDeducted})`
+      memberId: resolvedMemberId,
+      memberName: resolvedMemberName,
+      loanId: loanId,
+      description: `Loan Repayment - ${resolvedMemberName} (Int: ₹${waterfall.interestDeducted}, Prin: ₹${waterfall.principalDeducted})`
     };
 
     // Update target loan status if principal reaches zero
@@ -157,6 +230,7 @@ export function DataProvider({ children }) {
     <DataContext.Provider
       value={{
         groupProfile: data.groupProfile,
+        loanShapes: data.loanShapes || INITIAL_SEED_DATA.loanShapes,
         deposits: data.deposits,
         loans: data.loans,
         repayments: data.repayments,
