@@ -33,7 +33,7 @@ export default function MemberDetailModal({ member, onClose }) {
   }, 0);
 
   const memberLoans = loans.filter((l) => l.memberId === member.id);
-  const memberActiveLoans = memberLoans.filter((l) => l.status === 'Active');
+  const memberActiveLoans = memberLoans.filter((l) => l.status?.toLowerCase() === 'active');
   const memberTotalLoanPrincipal = memberActiveLoans.reduce(
     (sum, l) => sum + Number(l.principalAmount || 0),
     0

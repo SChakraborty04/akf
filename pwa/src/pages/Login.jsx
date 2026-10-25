@@ -12,16 +12,24 @@ export default function Login() {
   const [username, setUsername] = useState('lakshigroup');
   const [password, setPassword] = useState('lakshigroup');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    const success = login(username.trim(), password.trim());
-    if (success) {
-      navigate('/');
-    } else {
-      setError(t('loginError'));
+    try {
+      const result = await login(username.trim(), password.trim());
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.error || t('loginError'));
+      }
+    } catch (err) {
+      setError(err?.message || t('loginError'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,7 +53,7 @@ export default function Login() {
             <Shield className="w-9 h-9" />
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            {language === 'hi' ? 'लक्ष्मी समूह' : 'Lakshi Group SHG'}
+            SHG+
           </h1>
           <p className="text-xs font-semibold text-slate-500 max-w-xs mx-auto">
             {t('loginSubtitle')}
@@ -94,9 +102,14 @@ export default function Login() {
 
           <button
             type="submit"
-            className="w-full py-3 text-xs font-extrabold text-white bg-emerald-800 hover:bg-emerald-900 active:scale-98 rounded-2xl shadow-lg transition-all"
+            disabled={loading}
+            className="w-full py-3 text-xs font-extrabold text-white bg-emerald-800 hover:bg-emerald-900 active:scale-98 rounded-2xl shadow-lg transition-all disabled:opacity-60 flex items-center justify-center space-x-2"
           >
-            {t('loginBtn')}
+            {loading ? (
+              <span className="inline-block animate-pulse">Logging in...</span>
+            ) : (
+              <span>{t('loginBtn')}</span>
+            )}
           </button>
         </form>
 

@@ -90,7 +90,7 @@ export function calculateDashboardSummary(deposits = [], loans = [], repayments 
   const totalSaving = deposits.reduce((sum, d) => sum + Number(d.amount || 0), 0);
 
   // 2. Total Loan: Sum of active loan principal amounts
-  const activeLoans = loans.filter(l => l.status !== 'Paid');
+  const activeLoans = loans.filter(l => l.status?.toLowerCase() !== 'paid');
   const totalLoan = activeLoans.reduce((sum, l) => sum + Number(l.principalAmount || 0), 0);
 
   // Total Disbursed Loans (all loans)

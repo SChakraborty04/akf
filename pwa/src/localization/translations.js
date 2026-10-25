@@ -1,7 +1,7 @@
 export const translations = {
   en: {
     // App & Header
-    appTitle: "Lakshi Group SHG",
+    appTitle: "SHG+",
     groupName: "Lakshi Group",
     groupHindiName: "Lakshi Group",
     logout: "Logout",
@@ -150,13 +150,13 @@ export const translations = {
     allMembers: "All Members",
 
     // PWA Prompt
-    iosInstallTitle: "Install Lakshi Group App",
+    iosInstallTitle: "Install SHG+ App",
     iosInstallText: "To install this web app on your iOS device: tap the Share button",
     iosInstallStep2: "and select 'Add to Home Screen'."
   },
   hi: {
     // App & Header
-    appTitle: "लक्ष्मी समूह एसएचजी",
+    appTitle: "SHG+",
     groupName: "लक्ष्मी समूह",
     groupHindiName: "लक्ष्मी समूह",
     logout: "लॉगआउट",
@@ -305,7 +305,7 @@ export const translations = {
     allMembers: "सभी सदस्य",
 
     // PWA Prompt
-    iosInstallTitle: "लक्ष्मी समूह ऐप इंस्टॉल करें",
+    iosInstallTitle: "SHG+ ऐप इंस्टॉल करें",
     iosInstallText: "इस वेब ऐप को अपने iPhone/iPad पर इंस्टॉल करने के लिए: शेयर बटन पर टैप करें",
     iosInstallStep2: "और 'Add to Home Screen' चुनें।"
   }

@@ -103,7 +103,7 @@ export default function Repayments() {
       </div>
 
       {/* Repayments List */}
-      <div className="space-y-3">
+      <div className="space-y-3 pb-24">
         <div className="flex items-center justify-between px-1">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             {t('repaymentsList')} ({filteredRepayments.length})
@@ -210,13 +210,15 @@ export default function Repayments() {
       </div>
 
       {/* Floating Repayment Button */}
-      <button
-        onClick={() => setModalOpen(true)}
-        className="fixed bottom-20 right-4 z-40 bg-cyan-700 hover:bg-cyan-800 active:scale-95 text-white p-3.5 rounded-full shadow-2xl flex items-center space-x-2 transition-all border border-cyan-500"
-      >
-        <Plus className="w-5 h-5" />
-        <span className="text-xs font-bold pr-1">{t('loanRepayment')}</span>
-      </button>
+      <div className="fixed bottom-20 left-0 right-0 max-w-md mx-auto px-4 pointer-events-none z-50 flex justify-end">
+        <button
+          onClick={() => setModalOpen(true)}
+          className="pointer-events-auto bg-cyan-700 hover:bg-cyan-800 active:scale-95 text-white px-4 py-3 rounded-full shadow-2xl flex items-center space-x-2 transition-all border border-cyan-500 cursor-pointer"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="text-xs font-bold pr-1">{t('loanRepayment')}</span>
+        </button>
+      </div>
 
       {/* Quick Action Modal */}
       <QuickActionModal

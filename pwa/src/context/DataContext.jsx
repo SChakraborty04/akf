@@ -1,41 +1,57 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { INITIAL_SEED_DATA } from '../constants/seedData';
 import { processRepaymentWaterfall } from '../utils/calculations';
+import { api } from '../api/client';
+import { useAuth } from './AuthContext';
 
 const DataContext = createContext();
 
 const LOCAL_STORAGE_KEY = 'lakshi_shg_data';
 
+const isUUID = (str) =>
+  typeof str === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
 export function DataProvider({ children }) {
+  const { isAuthenticated, user } = useAuth();
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const [data, setData] = useState(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure all keys exist and migrate if loanShapes missing
         const members = parsed.members || INITIAL_SEED_DATA.members;
-        
-        // Ensure loans have memberId/memberName
-        const loans = (parsed.loans || INITIAL_SEED_DATA.loans).map(l => {
+
+        const loans = (parsed.loans || INITIAL_SEED_DATA.loans).map((l) => {
           if (!l.memberId) {
             const fallbackMember = members[0] || { id: 'm1', name: 'Sunita Devi' };
             return { ...l, memberId: fallbackMember.id, memberName: fallbackMember.name };
           }
-          return l;
+          return {
+            ...l,
+            status: l.status?.toLowerCase() === 'paid' ? 'Paid' : 'Active',
+          };
         });
 
-        // Ensure repayments have memberId/memberName
-        const repayments = (parsed.repayments || INITIAL_SEED_DATA.repayments).map(r => {
+        const repayments = (parsed.repayments || INITIAL_SEED_DATA.repayments).map((r) => {
           if (!r.memberId) {
-            const associatedLoan = loans.find(l => l.id === r.loanId);
+            const associatedLoan = loans.find((l) => l.id === r.loanId);
             return {
               ...r,
               memberId: associatedLoan?.memberId || 'm1',
-              memberName: associatedLoan?.memberName || 'Sunita Devi'
+              memberName: associatedLoan?.memberName || 'Sunita Devi',
             };
           }
           return r;
         });
+
+        const ledger = (parsed.ledger || INITIAL_SEED_DATA.ledger).map((item) => ({
+          ...item,
+          type: item.type
+            ? item.type.charAt(0).toUpperCase() + item.type.slice(1).toLowerCase()
+            : 'Deposit',
+        }));
 
         return {
           groupProfile: parsed.groupProfile || INITIAL_SEED_DATA.groupProfile,
@@ -43,8 +59,8 @@ export function DataProvider({ children }) {
           deposits: parsed.deposits || INITIAL_SEED_DATA.deposits,
           loans,
           repayments,
-          ledger: parsed.ledger || INITIAL_SEED_DATA.ledger,
-          members
+          ledger,
+          members,
         };
       }
     } catch (e) {
@@ -53,7 +69,7 @@ export function DataProvider({ children }) {
     return INITIAL_SEED_DATA;
   });
 
-  // Sync to localStorage on any state change
+  // Sync to localStorage on state changes
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
@@ -62,28 +78,133 @@ export function DataProvider({ children }) {
     }
   }, [data]);
 
-  // CRUD Actions
+  // Synchronize authoritative state from API
+  const syncSnapshot = useCallback(async () => {
+    if (!api.getToken()) return;
+
+    setIsSyncing(true);
+    try {
+      const snapshot = await api.getSnapshot();
+      if (!snapshot) return;
+
+      const normalizedMembers = snapshot.members || [];
+
+      const normalizedShapes = (snapshot.loanShapes || []).map((s) => ({
+        id: s.code || s.id,
+        code: s.code || s.id,
+        name: s.name,
+        symbol: s.symbol || s.code || s.id,
+        value: Number(s.value),
+        color: s.color || '#0d9488',
+        repaymentValue: s.repaymentValue,
+      }));
+
+      const normalizedLoans = (snapshot.loans || []).map((l) => ({
+        ...l,
+        status: l.status?.toLowerCase() === 'paid' ? 'Paid' : 'Active',
+        principalAmount: Number(l.principalAmount),
+      }));
+
+      const normalizedDeposits = (snapshot.deposits || []).map((d) => ({
+        ...d,
+        amount: Number(d.amount ?? d.totalAmount ?? 0),
+        totalStamps: Number(d.totalStamps ?? 0),
+      }));
+
+      const normalizedRepayments = (snapshot.repayments || []).map((r) => ({
+        ...r,
+        amountPaid: Number(r.amountPaid ?? 0),
+        interestDeducted: Number(r.interestDeducted ?? 0),
+        principalDeducted: Number(r.principalDeducted ?? 0),
+      }));
+
+      const normalizedLedger = (snapshot.ledger || []).map((item) => ({
+        ...item,
+        amount: Number(item.amount ?? 0),
+        type: item.type
+          ? item.type.charAt(0).toUpperCase() + item.type.slice(1).toLowerCase()
+          : 'Deposit',
+      }));
+
+      const freshData = {
+        groupProfile: snapshot.groupProfile || data.groupProfile,
+        loanShapes: normalizedShapes.length > 0 ? normalizedShapes : data.loanShapes,
+        members: normalizedMembers.length > 0 ? normalizedMembers : data.members,
+        deposits: normalizedDeposits,
+        loans: normalizedLoans,
+        repayments: normalizedRepayments,
+        ledger: normalizedLedger,
+      };
+
+      setData(freshData);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(freshData));
+    } catch (err) {
+      console.warn('[PWA Data] Server sync skipped or offline, using cached store:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [data.groupProfile, data.loanShapes, data.members]);
+
+  // Sync snapshot when operator is authenticated
+  useEffect(() => {
+    if (isAuthenticated && api.getToken()) {
+      syncSnapshot();
+    }
+  }, [isAuthenticated, user?.id]);
+
+  // -------------------------------------------------------------
+  // CRUD Actions (End-to-End API Connected with Offline Fallback)
+  // -------------------------------------------------------------
 
   // 1. Add Group/Member Deposit
-  const addDeposit = ({ date, note, memberDeposits, totalStamps, totalAmount, amount }) => {
-    const depositId = 'dep-' + Date.now();
+  const addDeposit = async ({ date, note, memberDeposits, totalStamps, totalAmount, amount }) => {
     const depositDate = date || new Date().toISOString().split('T')[0];
     const finalAmount = Number(totalAmount ?? amount ?? 0);
     const finalStamps = Number(totalStamps ?? 0);
+    const depositNote = note || 'Meeting Member Savings';
+    const contributingMembers = (memberDeposits || []).filter((m) => Number(m.stamps) > 0);
 
+    // Check if we can submit to remote API
+    const canUseApi =
+      api.getToken() &&
+      contributingMembers.length > 0 &&
+      contributingMembers.every((m) => isUUID(m.memberId));
+
+    if (canUseApi) {
+      try {
+        const payload = {
+          date: depositDate,
+          note: depositNote,
+          items: contributingMembers.map((m) => ({
+            memberId: m.memberId,
+            stamps: Number(m.stamps),
+          })),
+        };
+
+        const res = await api.createDeposit(payload);
+        if (res) {
+          // Re-sync snapshot to pull authoritative server IDs and ledger
+          await syncSnapshot();
+          return res;
+        }
+      } catch (err) {
+        console.warn('[PWA Data] Remote deposit failed, executing offline fallback:', err);
+      }
+    }
+
+    // Local Optimistic Fallback (if offline or non-UUID seed data)
+    const depositId = 'dep-' + Date.now();
     const newDeposit = {
       id: depositId,
       amount: finalAmount,
       totalStamps: finalStamps,
       date: depositDate,
-      note: note || 'Meeting Member Savings',
-      memberDeposits: memberDeposits || []
+      approvalStatus: 'approved',
+      note: depositNote,
+      memberDeposits: memberDeposits || [],
     };
 
-    // Maintain member-level ledger entries
-    const contributingMembers = (memberDeposits || []).filter(m => Number(m.stamps) > 0);
     let newLedgerEntries = [];
-
     if (contributingMembers.length > 0) {
       newLedgerEntries = contributingMembers.map((m, idx) => ({
         id: `led-${Date.now()}-${idx}-${m.memberId}`,
@@ -94,40 +215,68 @@ export function DataProvider({ children }) {
         memberName: m.memberName,
         stamps: m.stamps,
         depositId: depositId,
-        description: `Deposit - ${m.memberName} (${m.stamps} ${m.stamps === 1 ? 'stamp' : 'stamps'})`
+        description: `Deposit - ${m.memberName} (${m.stamps} ${m.stamps === 1 ? 'stamp' : 'stamps'})`,
       }));
     } else {
-      newLedgerEntries = [{
-        id: 'led-' + Date.now(),
-        type: 'Deposit',
-        amount: finalAmount,
-        date: depositDate,
-        depositId: depositId,
-        description: note || 'Group Monthly Deposit'
-      }];
+      newLedgerEntries = [
+        {
+          id: 'led-' + Date.now(),
+          type: 'Deposit',
+          amount: finalAmount,
+          date: depositDate,
+          depositId: depositId,
+          description: depositNote,
+        },
+      ];
     }
 
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
       deposits: [newDeposit, ...prev.deposits],
-      ledger: [...newLedgerEntries, ...prev.ledger]
+      ledger: [...newLedgerEntries, ...prev.ledger],
     }));
+
+    return newDeposit;
   };
 
   // 2. Create Member Loan
-  const createLoan = ({ memberId, memberName, principalAmount, date, stamps }) => {
-    const loanId = 'loan-' + Date.now();
-    const ledgerId = 'led-' + Date.now();
-    const loanPrincipal = Number(principalAmount);
+  const createLoan = async ({ memberId, memberName, principalAmount, date, stamps }) => {
     const loanDate = date || new Date().toISOString().split('T')[0];
-
-    // Find member name if not passed
-    const member = data.members.find(m => m.id === memberId);
+    const loanPrincipal = Number(principalAmount);
+    const member = data.members.find((m) => m.id === memberId);
     const resolvedMemberName = memberName || member?.name || 'Member';
 
+    const canUseApi = api.getToken() && isUUID(memberId) && (stamps || []).length > 0;
+
+    if (canUseApi) {
+      try {
+        const payload = {
+          memberId,
+          date: loanDate,
+          stamps: stamps.map((st) => ({
+            shape: st.shape || st.shapeId || st.code,
+          })),
+        };
+
+        const res = await api.createLoan(payload);
+        if (res) {
+          await syncSnapshot();
+          return res;
+        }
+      } catch (err) {
+        console.warn('[PWA Data] Remote loan disbursal failed, executing offline fallback:', err);
+      }
+    }
+
+    // Local Optimistic Fallback
+    const loanId = 'loan-' + Date.now();
+    const ledgerId = 'led-' + Date.now();
+
     const stampsSummary = (stamps || [])
-      .map(s => {
-        const shapeName = s.shape ? (s.shape.charAt(0).toUpperCase() + s.shape.slice(1)) : 'Stamp';
+      .map((s) => {
+        const shapeName = s.shape || s.shapeId
+          ? (s.shape || s.shapeId).charAt(0).toUpperCase() + (s.shape || s.shapeId).slice(1)
+          : 'Stamp';
         return shapeName;
       })
       .join(', ');
@@ -140,7 +289,8 @@ export function DataProvider({ children }) {
       date: loanDate,
       monthlyInterestRate: 0.02,
       status: 'Active',
-      stamps: stamps || []
+      approvalStatus: 'approved',
+      stamps: stamps || [],
     };
 
     const newLedgerEntry = {
@@ -151,32 +301,65 @@ export function DataProvider({ children }) {
       memberId,
       memberName: resolvedMemberName,
       loanId: loanId,
-      description: `Loan Disbursed - ${resolvedMemberName}${stampsSummary ? ` (${stampsSummary})` : ''}`
+      description: `Loan Disbursed - ${resolvedMemberName}${stampsSummary ? ` (${stampsSummary})` : ''}`,
     };
 
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
       loans: [newLoan, ...prev.loans],
-      ledger: [newLedgerEntry, ...prev.ledger]
+      ledger: [newLedgerEntry, ...prev.ledger],
     }));
+
+    return newLoan;
   };
 
   // 3. Add Loan Repayment
-  const addRepayment = ({ loanId, memberId, memberName, amountPaid, date, stamps }) => {
+  const addRepayment = async ({ loanId, memberId, memberName, amountPaid, date, stamps }) => {
     const repaymentDate = date || new Date().toISOString().split('T')[0];
-    const targetLoan = data.loans.find(l => l.id === loanId);
-    
+    const targetLoan = data.loans.find((l) => l.id === loanId);
     if (!targetLoan) return;
 
-    // Process interest & principal deduction waterfall
-    const waterfall = processRepaymentWaterfall(targetLoan, data.repayments, amountPaid, repaymentDate);
+    const resolvedMemberId = memberId || targetLoan.memberId;
+    const resolvedMember = data.members.find((m) => m.id === resolvedMemberId);
+    const resolvedMemberName =
+      memberName || targetLoan.memberName || resolvedMember?.name || 'Member';
+
+    const canUseApi =
+      api.getToken() &&
+      isUUID(loanId) &&
+      (stamps || []).length > 0;
+
+    if (canUseApi) {
+      try {
+        const payload = {
+          loanId,
+          memberId: isUUID(resolvedMemberId) ? resolvedMemberId : undefined,
+          date: repaymentDate,
+          stamps: stamps.map((st) => ({
+            shape: st.shape || st.shapeId || st.code,
+          })),
+        };
+
+        const res = await api.createRepayment(payload);
+        if (res) {
+          await syncSnapshot();
+          return res;
+        }
+      } catch (err) {
+        console.warn('[PWA Data] Remote repayment failed, executing offline fallback:', err);
+      }
+    }
+
+    // Local Optimistic Fallback with Waterfall Calculation
+    const waterfall = processRepaymentWaterfall(
+      targetLoan,
+      data.repayments,
+      amountPaid,
+      repaymentDate
+    );
 
     const repaymentId = 'rep-' + Date.now();
     const ledgerId = 'led-' + Date.now();
-
-    const resolvedMemberId = memberId || targetLoan.memberId;
-    const resolvedMember = data.members.find(m => m.id === resolvedMemberId);
-    const resolvedMemberName = memberName || targetLoan.memberName || resolvedMember?.name || 'Member';
 
     const newRepayment = {
       id: repaymentId,
@@ -187,7 +370,8 @@ export function DataProvider({ children }) {
       interestDeducted: waterfall.interestDeducted,
       principalDeducted: waterfall.principalDeducted,
       date: repaymentDate,
-      stamps: stamps || []
+      approvalStatus: 'approved',
+      stamps: stamps || [],
     };
 
     const newLedgerEntry = {
@@ -198,32 +382,37 @@ export function DataProvider({ children }) {
       memberId: resolvedMemberId,
       memberName: resolvedMemberName,
       loanId: loanId,
-      description: `Loan Repayment - ${resolvedMemberName} (Int: ₹${waterfall.interestDeducted}, Prin: ₹${waterfall.principalDeducted})`
+      description: `Loan Repayment - ${resolvedMemberName} (Int: ₹${waterfall.interestDeducted}, Prin: ₹${waterfall.principalDeducted})`,
     };
 
-    // Update target loan status if principal reaches zero
-    const updatedLoans = data.loans.map(loan => {
+    const updatedLoans = data.loans.map((loan) => {
       if (loan.id === loanId) {
         return {
           ...loan,
-          status: waterfall.willBeFullyPaid ? 'Paid' : 'Active'
+          status: waterfall.willBeFullyPaid ? 'Paid' : 'Active',
         };
       }
       return loan;
     });
 
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
       loans: updatedLoans,
       repayments: [newRepayment, ...prev.repayments],
-      ledger: [newLedgerEntry, ...prev.ledger]
+      ledger: [newLedgerEntry, ...prev.ledger],
     }));
+
+    return newRepayment;
   };
 
   // 4. Reset Data to Seed Data
-  const resetData = () => {
-    setData(INITIAL_SEED_DATA);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_SEED_DATA));
+  const resetData = async () => {
+    if (api.getToken()) {
+      await syncSnapshot();
+    } else {
+      setData(INITIAL_SEED_DATA);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_SEED_DATA));
+    }
   };
 
   return (
@@ -236,10 +425,12 @@ export function DataProvider({ children }) {
         repayments: data.repayments,
         ledger: data.ledger,
         members: data.members,
+        isSyncing,
+        syncSnapshot,
         addDeposit,
         createLoan,
         addRepayment,
-        resetData
+        resetData,
       }}
     >
       {children}

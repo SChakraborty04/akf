@@ -6,7 +6,7 @@ import { useData } from '../context/DataContext';
 
 export default function Header() {
   const { language, toggleLanguage, t } = useLanguage();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { groupProfile } = useData();
 
   return (
@@ -19,9 +19,11 @@ export default function Header() {
           </div>
           <div>
             <h1 className="font-bold text-base tracking-tight leading-none text-white">
-              {language === 'hi' ? groupProfile.hindiName || groupProfile.name : groupProfile.name}
+              {language === 'hi' ? groupProfile?.hindiName || groupProfile?.name : groupProfile?.name}
             </h1>
-            <span className="text-[11px] text-emerald-200 font-medium">SHG #Patna-04</span>
+            <span className="text-[11px] text-emerald-200 font-medium">
+              {user?.username ? `@${user.username}` : (groupProfile?.district || 'SHG Member')}
+            </span>
           </div>
         </div>
 

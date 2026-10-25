@@ -23,11 +23,11 @@ export default function Ledger() {
     : dateFiltered;
 
   const totalCredits = filteredLedger
-    .filter((i) => i.type === 'Deposit' || i.type === 'Repayment')
+    .filter((i) => i.type?.toLowerCase() === 'deposit' || i.type?.toLowerCase() === 'repayment')
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   const totalDebits = filteredLedger
-    .filter((i) => i.type === 'Loan')
+    .filter((i) => i.type?.toLowerCase() === 'loan')
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   return (
@@ -122,7 +122,8 @@ export default function Ledger() {
           </div>
         ) : (
           filteredLedger.map((item) => {
-            const isCredit = item.type === 'Deposit' || item.type === 'Repayment';
+            const isCredit =
+              item.type?.toLowerCase() === 'deposit' || item.type?.toLowerCase() === 'repayment';
 
             return (
               <div

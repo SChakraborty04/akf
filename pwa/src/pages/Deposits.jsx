@@ -113,7 +113,7 @@ export default function Deposits() {
       </div>
 
       {/* Deposit Cards List */}
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 pb-24">
         <div className="flex items-center justify-between px-1">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             {t('depositList')} ({filteredDeposits.length})
@@ -262,13 +262,15 @@ export default function Deposits() {
       </div>
 
       {/* Floating Add Deposit Button */}
-      <button
-        onClick={() => setModalOpen(true)}
-        className="fixed bottom-20 right-4 z-40 bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white p-3.5 rounded-full shadow-2xl flex items-center space-x-2 transition-all border border-emerald-600"
-      >
-        <Plus className="w-5 h-5" />
-        <span className="text-xs font-bold pr-1">{t('addDeposit')}</span>
-      </button>
+      <div className="fixed bottom-20 left-0 right-0 max-w-md mx-auto px-4 pointer-events-none z-50 flex justify-end">
+        <button
+          onClick={() => setModalOpen(true)}
+          className="pointer-events-auto bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white px-4 py-3 rounded-full shadow-2xl flex items-center space-x-2 transition-all border border-emerald-600 cursor-pointer"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="text-xs font-bold pr-1">{t('addDeposit')}</span>
+        </button>
+      </div>
 
       {/* Quick Action Modal */}
       <QuickActionModal

@@ -1,0 +1,21 @@
+# Cloudflare Worker / API Local & Production Environment Variables
+# In Cloudflare Workers production:
+#   wrangler secret put DATABASE_URL
+#   wrangler secret put JWT_SECRET
+#   Set CORS_ORIGINS via wrangler.jsonc [vars] or dashboard
+#   Set TIMEZONE via wrangler.jsonc [vars] or dashboard
+
+# Neon PostgreSQL connection string (Production pooler)
+DATABASE_URL="postgresql://user:password@host-pooler.region.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+# JWT Signing Secret (>= 32 chars)
+JWT_SECRET="lakshi-shg-super-secure-dev-jwt-secret-key-32chars"
+
+# Comma-separated allowed frontend origins for CORS (or * for all).
+# Supports exact origins or wildcards for subdomains:
+# Production Example:
+#   CORS_ORIGINS="https://pwa.yourdomain.com,https://mis.yourdomain.com,https://*.pages.dev"
+CORS_ORIGINS="http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+
+# Default IANA Timezone for interest accrual calculation
+TIMEZONE="Asia/Kolkata"

@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Lakshi Group SHG',
-        short_name: 'Lakshi SHG',
-        description: 'Offline-first Self Help Group (SHG) Management Application',
+        name: 'SHG+',
+        short_name: 'SHG+',
+        description: 'Offline-first Self Help Group Management Application — SHG+',
         theme_color: '#15803d',
         background_color: '#f8fafc',
         display: 'standalone',

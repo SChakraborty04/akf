@@ -76,7 +76,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
   useEffect(() => {
     if (mode === 'repayment' && selectedMemberId) {
       const memberActiveLoans = loans.filter(
-        l => l.memberId === selectedMemberId && l.status === 'Active'
+        l => l.memberId === selectedMemberId && l.status?.toLowerCase() === 'active'
       );
       if (memberActiveLoans.length > 0) {
         setSelectedLoanId(memberActiveLoans[0].id);
@@ -93,7 +93,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
 
   // Active loans for selected member
   const memberActiveLoans = loans.filter(
-    l => l.memberId === selectedMemberId && l.status === 'Active'
+    l => l.memberId === selectedMemberId && l.status?.toLowerCase() === 'active'
   );
   const currentLoan = loans.find(l => l.id === selectedLoanId);
   const currentLoanDetails = currentLoan ? calculateLoanDetails(currentLoan, repayments, date) : null;
@@ -187,7 +187,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
   // -------------------------------------------------------------
   // Form Submission
   // -------------------------------------------------------------
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (mode === 'deposit') {
@@ -207,7 +207,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
         };
       });
 
-      addDeposit({
+      await addDeposit({
         date,
         note: note || 'Meeting Member Savings',
         memberDeposits,
@@ -224,7 +224,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
         return;
       }
 
-      createLoan({
+      await createLoan({
         memberId: selectedMemberId,
         memberName: currentMember?.name || 'Member',
         principalAmount: totalStampsValue,
@@ -248,7 +248,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
         return;
       }
 
-      addRepayment({
+      await addRepayment({
         loanId: selectedLoanId,
         memberId: selectedMemberId,
         memberName: currentMember?.name || 'Member',
