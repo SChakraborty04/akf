@@ -11,10 +11,12 @@ import {
   X,
   Info,
   DollarSign,
+  KeyRound,
   Lock,
 } from 'lucide-react';
 import { api } from '../api/client';
 import type { SystemSettingsData } from '../types';
+import { ChangePasswordModal } from '../components/ChangePasswordModal';
 
 export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'access' | 'interest' | 'validation'>('access');
@@ -23,6 +25,7 @@ export const SettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   // Form State
   const [formState, setFormState] = useState({
@@ -362,6 +365,26 @@ export const SettingsPage: React.FC = () => {
                   className="w-5 h-5 accent-indigo-600 rounded cursor-pointer mt-0.5"
                 />
               </div>
+
+              {/* Administrator Password Card */}
+              <div className="p-4 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-start justify-between gap-4 md:col-span-2">
+                <div>
+                  <h4 className="text-xs font-semibold text-indigo-200 flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Administrator Credentials & Password</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Update your MIS administrator login password. Default master password is <span className="font-mono text-emerald-400 font-semibold">Admin123</span>.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-md shadow-indigo-600/30 shrink-0 cursor-pointer"
+                >
+                  Change Password
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -619,6 +642,12 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Admin Password Change Modal */}
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
     </div>
   );
 };

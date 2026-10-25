@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  KeyRound,
   Lock,
   ShieldCheck,
   Sparkles,
@@ -20,8 +19,8 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('super_admin');
-  const [password, setPassword] = useState('Admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,12 +46,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickFill = (user: string, pass: string) => {
-    setUsername(user);
-    setPassword(pass);
-    setErrorMessage(null);
   };
 
   return (
@@ -186,46 +179,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               )}
             </button>
           </form>
-
-          {/* Quick Credential Presets */}
-          <div className="mt-6 pt-5 border-t border-slate-800">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <KeyRound className="w-3 h-3 text-emerald-400" />
-                <span>Quick Fill Demo Credentials</span>
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('super_admin', 'Admin123')}
-                className="p-2.5 rounded-xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 hover:border-emerald-500/40 text-left transition group cursor-pointer"
-              >
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-200 group-hover:text-emerald-300">
-                  <span>super_admin</span>
-                  <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.2 rounded font-semibold">
-                    Global
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono mt-0.5">Admin123</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin', 'Admin123')}
-                className="p-2.5 rounded-xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/40 text-left transition group cursor-pointer"
-              >
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-200 group-hover:text-indigo-300">
-                  <span>admin</span>
-                  <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.2 rounded font-semibold">
-                    Regional
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono mt-0.5">Admin123</div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Security & System Footnotes */}

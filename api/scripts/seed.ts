@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * CLI script to seed development database with demo data matching the PWA.
+ * CLI script to seed database with production/demo data matching the PWA and MIS.
  * Usage:
  *   bun run scripts/seed.ts
  */
@@ -23,28 +23,29 @@ console.log('🌱 Connecting to database...');
 
 async function main() {
   const readDb = drizzleHttp(neon(databaseUrl), { schema });
-  const existingGroupId = await findSeededGroup(readDb as any, 'Lakshi Group');
-
-  if (existingGroupId) {
-    console.log(`ℹ️ "Lakshi Group" already exists in database (id: ${existingGroupId}). Skipping seed.`);
-    return;
-  }
-
-  console.log('Seeding Lakshi Group, 12 members, 5 loan shapes, current cycle and operator account...');
   const pool = new Pool({ connectionString: databaseUrl });
+
   try {
     const txDb = drizzlePool(pool, { schema });
+
+    console.log('Ensuring admin credentials (username: "admin" / "super_admin", password: "Admin123"), system settings, and locations...');
     const base = await seedBaseData(txDb as any, {
       groupName: 'Lakshi Group',
       username: 'lakshigroup',
-      password: 'lakshigroup', // Default PWA credentials
+      password: 'lakshigroup',
+      adminPassword: 'Admin123',
     });
+    console.log('✓ Admin accounts configured with default password: "Admin123"');
 
-    console.log(`✓ Created group ${base.groupId} and operator user (username: "lakshigroup", password: "lakshigroup")`);
-
-    console.log('Seeding demo transactions (4 meeting deposits, 2 active loans, 2 repayments)...');
-    await seedDemoTransactions(txDb as any, base);
-    console.log('✓ Demo transactions seeded successfully!');
+    const existingGroupId = await findSeededGroup(readDb as any, 'Lakshi Group');
+    if (existingGroupId && base.groupId !== existingGroupId) {
+      console.log(`ℹ️ "Lakshi Group" already exists in database (id: ${existingGroupId}).`);
+    } else {
+      console.log(`✓ Created/verified group ${base.groupId} and operator user (username: "lakshigroup", password: "lakshigroup")`);
+      console.log('Seeding demo transactions (meeting deposits, active loans, repayments)...');
+      await seedDemoTransactions(txDb as any, base);
+      console.log('✓ Demo transactions seeded successfully!');
+    }
   } finally {
     await pool.end();
   }

@@ -9,8 +9,8 @@ export default function Login() {
   const { login } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
 
-  const [username, setUsername] = useState('lakshigroup');
-  const [password, setPassword] = useState('lakshigroup');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -77,6 +77,8 @@ export default function Login() {
               <input
                 type="text"
                 required
+                autoComplete="username"
+                placeholder="Enter operator username (e.g. lakshigroup)"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full text-xs bg-slate-50 border border-slate-300 rounded-2xl pl-10 pr-3.5 py-2.5 font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
@@ -93,6 +95,8 @@ export default function Login() {
               <input
                 type="password"
                 required
+                autoComplete="current-password"
+                placeholder="Enter operator password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full text-xs bg-slate-50 border border-slate-300 rounded-2xl pl-10 pr-3.5 py-2.5 font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"

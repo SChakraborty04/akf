@@ -699,6 +699,13 @@ class ApiClient {
     });
   }
 
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ passwordChanged: boolean }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
   // Settings
   async getSettings(): Promise<SystemSettingsData> {
     try {

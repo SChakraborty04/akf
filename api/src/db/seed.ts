@@ -39,34 +39,42 @@ export type SeedOptions = {
   groupName?: string;
   username?: string;
   password: string;
+  adminPassword?: string;
   role?: 'operator' | 'viewer';
 };
 
 /** Creates complete groups, admin credentials, shapes, settings, and location master data. */
 export async function seedBaseData(db: Db, opts: SeedOptions) {
-  // 1. Seed global super_admin user if not exists
+  // 1. Seed or update global super_admin user with default password Admin123
+  const superAdminHash = await hashPassword('Admin123');
   const [existingSuperAdmin] = await db.select({ id: users.id }).from(users).where(eq(users.username, 'super_admin')).limit(1);
   if (!existingSuperAdmin) {
     await db.insert(users).values({
       groupId: null,
       username: 'super_admin',
-      passwordHash: await hashPassword('Admin123'),
+      passwordHash: superAdminHash,
       fullName: 'Global Super Administrator',
       role: 'super_admin',
       language: 'en',
     });
+  } else {
+    await db.update(users).set({ passwordHash: superAdminHash, role: 'super_admin' }).where(eq(users.id, existingSuperAdmin.id));
   }
 
+  const adminPass = opts.adminPassword || (opts.password === 'lakshigroup' ? 'Admin123' : (opts.password || 'Admin123'));
+  const adminHash = await hashPassword(adminPass);
   const [existingAdmin] = await db.select({ id: users.id }).from(users).where(eq(users.username, 'admin')).limit(1);
   if (!existingAdmin) {
     await db.insert(users).values({
       groupId: null,
       username: 'admin',
-      passwordHash: await hashPassword(opts.password || 'Admin123'),
+      passwordHash: adminHash,
       fullName: 'MIS Master Administrator',
       role: 'super_admin',
       language: 'en',
     });
+  } else {
+    await db.update(users).set({ passwordHash: adminHash, role: 'super_admin' }).where(eq(users.id, existingAdmin.id));
   }
 
   // 2. Seed global system settings

@@ -3,9 +3,9 @@ import { count, desc, eq, sql } from 'drizzle-orm';
 import { deposits, groups, loans, members } from '../db/schema';
 import type { AppEnv } from '../env';
 import { created, ok } from '../lib/http';
-import { unauthorized, unprocessable } from '../lib/errors';
+import { AppError, unauthorized, unprocessable } from '../lib/errors';
 import { requireAdmin, requireAuth } from '../middleware/auth';
-import { login } from '../services/auth.service';
+import { changePassword, login } from '../services/auth.service';
 import {
   addMemberToGroup,
   bulkImportMembers,
@@ -89,6 +89,30 @@ adminRoutes.post('/auth/login', async (c) => {
 adminRoutes.use('*', requireAuth);
 
 adminRoutes.get('/auth/me', (c) => ok(c, c.var.auth));
+
+/**
+ * Change current logged-in admin's password.
+ */
+adminRoutes.post('/auth/change-password', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || !body.currentPassword || !body.newPassword) {
+    throw unprocessable('Current password and new password are required', 'MISSING_FIELDS');
+  }
+
+  const result = await c.var.tx((tx) =>
+    changePassword(tx, c.var.auth.userId, body.currentPassword, body.newPassword),
+  );
+
+  if (!result.ok) {
+    throw new AppError(
+      result.reason === 'WRONG_PASSWORD' ? 400 : 404,
+      result.reason,
+      result.reason === 'WRONG_PASSWORD' ? 'Current password is incorrect' : 'User not found',
+    );
+  }
+
+  return ok(c, { passwordChanged: true });
+});
 
 /**
  * Home / Dashboard KPI Metrics

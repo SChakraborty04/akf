@@ -1,6 +1,8 @@
-import { LogOut, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { KeyRound, LogOut, RefreshCw } from 'lucide-react';
 import type { MISUser } from '../types';
 import type { NavPage } from './Sidebar';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 interface HeaderProps {
   activePage: NavPage;
@@ -21,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onLogout,
 }) => {
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const titles: Record<NavPage, { title: string; subtitle: string }> = {
     home: {
       title: 'Executive MIS Dashboard',
@@ -103,6 +106,16 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
+        {/* Change Password Button */}
+        <button
+          onClick={() => setIsPasswordModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs font-medium transition border border-slate-700/80 cursor-pointer shadow-sm ml-1"
+          title="Change Administrator Password"
+        >
+          <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+          <span className="hidden md:inline">Change Password</span>
+        </button>
+
         {/* Logout Button */}
         {onLogout && (
           <button
@@ -115,6 +128,13 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
       </div>
+
+      {/* Admin Password Change Modal */}
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        username={currentUser?.username}
+      />
     </header>
   );
 };
