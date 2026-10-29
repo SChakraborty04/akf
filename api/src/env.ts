@@ -14,7 +14,7 @@ export type Bindings = {
 export type AuthContext = {
   userId: string;
   groupId: string | null;
-  role: 'super_admin' | 'admin' | 'operator' | 'viewer';
+  role: 'super_admin' | 'admin' | 'operator' | 'viewer' | 'do' | 'shg';
   username: string;
   fullName: string;
   language: 'en' | 'hi';

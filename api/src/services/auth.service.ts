@@ -19,7 +19,7 @@ export type PublicUser = {
   id: string;
   username: string;
   fullName: string;
-  role: 'super_admin' | 'admin' | 'operator' | 'viewer';
+  role: 'super_admin' | 'admin' | 'operator' | 'viewer' | 'do' | 'shg';
   language: 'en' | 'hi';
   groupId: string | null;
   groupName: string | null;

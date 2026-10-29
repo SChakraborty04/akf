@@ -1,4 +1,4 @@
-export type UserRole = 'super_admin' | 'admin' | 'operator' | 'viewer';
+export type UserRole = 'admin' | 'do' | 'shg' | 'viewer' | 'super_admin' | 'operator';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export interface LocationHierarchy {
@@ -178,6 +178,8 @@ export interface MISUser {
   isLocked: boolean;
   groupId?: string | null;
   groupName?: string | null;
+  assignedGroupIds?: string[] | null;
+  assignedGroupNames?: string[] | null;
   failedLoginCount: number;
   lastLoginAt?: string | null;
   createdAt: string;

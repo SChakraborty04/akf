@@ -8,15 +8,17 @@ export type CreateUserInput = {
   username: string;
   password: string;
   fullName: string;
-  role: 'super_admin' | 'admin' | 'operator' | 'viewer';
+  role: 'super_admin' | 'admin' | 'operator' | 'viewer' | 'do' | 'shg';
   groupId?: string | null;
+  assignedGroupIds?: string[] | null;
   language?: 'en' | 'hi';
 };
 
 export type UpdateUserInput = {
   fullName?: string;
-  role?: 'super_admin' | 'admin' | 'operator' | 'viewer';
+  role?: 'super_admin' | 'admin' | 'operator' | 'viewer' | 'do' | 'shg';
   groupId?: string | null;
+  assignedGroupIds?: string[] | null;
   isActive?: boolean;
   unlockAccount?: boolean;
 };
@@ -56,25 +58,25 @@ export async function getAdminSettings(db: Db) {
       enforcePasswordExpiry,
       roles: [
         {
-          role: 'super_admin',
-          label: 'Super Administrator',
-          description: 'Full system control, cross-SHG access, rule updates, user provisioning',
+          role: 'admin',
+          label: 'Administrator',
+          description: 'Full administrative control, cross-SHG oversight, rule updates, user provisioning',
           canApprove: true,
           canEditSettings: true,
           canManageUsers: true,
         },
         {
-          role: 'admin',
-          label: 'Regional Administrator',
-          description: 'Approval of transactions, SHG monitoring, and reporting within jurisdiction',
+          role: 'do',
+          label: 'DO (Development Officer)',
+          description: 'Supervises and manages multiple SHGs across assigned geography',
           canApprove: true,
           canEditSettings: false,
           canManageUsers: false,
         },
         {
-          role: 'operator',
-          label: 'SHG Operator',
-          description: 'Field operator recording meeting savings deposits, loans, repayments',
+          role: 'shg',
+          label: 'SHG User',
+          description: 'Field app recording user who has access to the PWA for the specified SHG',
           canApprove: false,
           canEditSettings: false,
           canManageUsers: false,
@@ -132,6 +134,7 @@ export async function listAdminUsers(db: Db, filters: { role?: string; groupId?:
       isActive: users.isActive,
       groupId: users.groupId,
       groupName: groups.name,
+      assignedGroupIds: users.assignedGroupIds,
       failedLoginCount: users.failedLoginCount,
       lockedUntil: users.lockedUntil,
       lastLoginAt: users.lastLoginAt,
@@ -142,11 +145,42 @@ export async function listAdminUsers(db: Db, filters: { role?: string; groupId?:
     .where(whereClause)
     .orderBy(desc(users.createdAt));
 
+  // Collect all referenced group IDs to look up their names
+  const allGroupIds = new Set<string>();
+  for (const r of rows) {
+    if (r.groupId) allGroupIds.add(r.groupId);
+    if (Array.isArray(r.assignedGroupIds)) {
+      for (const gid of r.assignedGroupIds) {
+        if (gid) allGroupIds.add(gid);
+      }
+    }
+  }
+
+  const groupNameMap = new Map<string, string>();
+  if (allGroupIds.size > 0) {
+    const groupRows = await db
+      .select({ id: groups.id, name: groups.name })
+      .from(groups)
+      .where(inArray(groups.id, Array.from(allGroupIds)));
+    for (const g of groupRows) {
+      groupNameMap.set(g.id, g.name);
+    }
+  }
+
   const now = new Date();
-  return rows.map((r) => ({
-    ...r,
-    isLocked: !!(r.lockedUntil && r.lockedUntil > now),
-  }));
+  return rows.map((r) => {
+    const assignedIds = Array.isArray(r.assignedGroupIds) ? r.assignedGroupIds : [];
+    const assignedNames = assignedIds
+      .map((id) => groupNameMap.get(id))
+      .filter(Boolean) as string[];
+
+    return {
+      ...r,
+      assignedGroupIds: assignedIds,
+      assignedGroupNames: assignedNames,
+      isLocked: !!(r.lockedUntil && r.lockedUntil > now),
+    };
+  });
 }
 
 /**
@@ -160,10 +194,12 @@ export async function createAdminUser(tx: Db, input: CreateUserInput) {
   }
 
   const passwordHash = await hashPassword(input.password);
+  const assignedIds = input.assignedGroupIds || (input.groupId ? [input.groupId] : []);
   const [user] = await tx
     .insert(users)
     .values({
-      groupId: input.groupId || null,
+      groupId: input.groupId || (assignedIds.length > 0 ? assignedIds[0] : null),
+      assignedGroupIds: assignedIds,
       username: normalizedUsername,
       passwordHash,
       fullName: input.fullName.trim(),
@@ -183,6 +219,7 @@ export async function updateAdminUser(tx: Db, userId: string, patch: UpdateUserI
   if (patch.fullName !== undefined) updateData.fullName = patch.fullName.trim();
   if (patch.role !== undefined) updateData.role = patch.role;
   if (patch.groupId !== undefined) updateData.groupId = patch.groupId || null;
+  if (patch.assignedGroupIds !== undefined) updateData.assignedGroupIds = patch.assignedGroupIds;
   if (patch.isActive !== undefined) updateData.isActive = patch.isActive;
   if (patch.unlockAccount) {
     updateData.lockedUntil = null;

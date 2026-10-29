@@ -24,6 +24,8 @@ import {
   Trash2,
   Globe,
   Layers,
+  Shield,
+  Smartphone,
 } from 'lucide-react';
 import { api } from '../api/client';
 import type { SHGGroup, MISUser, LocationHierarchy, MasterLocation } from '../types';
@@ -47,12 +49,50 @@ export const MasterPage: React.FC = () => {
   const [locFilterBlock, setLocFilterBlock] = useState('');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<MasterLocation | null>(null);
-  const [locationForm, setLocationForm] = useState({
-    state: 'Bihar',
-    district: 'Patna',
-    block: '',
-    panchayat: '',
-    village: '',
+  const [locFormState, setLocFormState] = useState<{
+    stateMode: 'select' | 'new';
+    stateSelect: string;
+    stateNew: string;
+
+    districtMode: 'select' | 'new';
+    districtSelect: string;
+    districtNew: string;
+
+    blockMode: 'select' | 'new';
+    blockSelect: string;
+    blockNew: string;
+
+    panchayatMode: 'select' | 'new';
+    panchayatSelect: string;
+    panchayatNew: string;
+
+    villageMode: 'select' | 'new';
+    villageSelect: string;
+    villageNew: string;
+
+    pincode: string;
+    cascadeUpdateGroups: boolean;
+  }>({
+    stateMode: 'select',
+    stateSelect: 'Bihar',
+    stateNew: '',
+
+    districtMode: 'select',
+    districtSelect: 'Patna',
+    districtNew: '',
+
+    blockMode: 'select',
+    blockSelect: '',
+    blockNew: '',
+
+    panchayatMode: 'select',
+    panchayatSelect: '',
+    panchayatNew: '',
+
+    villageMode: 'new',
+    villageSelect: '',
+    villageNew: '',
+
     pincode: '',
     cascadeUpdateGroups: false,
   });
@@ -128,15 +168,25 @@ export const MasterPage: React.FC = () => {
     username: string;
     password: string;
     fullName: string;
-    role: 'super_admin' | 'admin' | 'operator' | 'viewer';
+    role: 'admin' | 'do' | 'shg' | 'viewer';
     groupId: string;
+    assignedGroupIds: string[];
   }>({
     username: '',
     password: '',
     fullName: '',
-    role: 'operator',
+    role: 'admin',
     groupId: '',
+    assignedGroupIds: [],
   });
+
+  // Cascading location filters for user module SHG selection
+  const [userShgState, setUserShgState] = useState<string>('');
+  const [userShgDistrict, setUserShgDistrict] = useState<string>('');
+  const [userShgBlock, setUserShgBlock] = useState<string>('');
+  const [userShgPanchayat, setUserShgPanchayat] = useState<string>('');
+  const [userShgVillage, setUserShgVillage] = useState<string>('');
+
   const [resetPasswordModal, setResetPasswordModal] = useState<{ open: boolean; user: MISUser | null; newPass: string }>({
     open: false,
     user: null,
@@ -438,8 +488,18 @@ export const MasterPage: React.FC = () => {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserForm.username || !newUserForm.password || !newUserForm.fullName) {
-      showNotification('error', 'All fields are required.');
+    if (!newUserForm.username.trim() || !newUserForm.password || !newUserForm.fullName.trim()) {
+      showNotification('error', 'Username, password, and full name are required.');
+      return;
+    }
+
+    if (newUserForm.role === 'shg' && !newUserForm.groupId) {
+      showNotification('error', 'Please select the specified SHG for this field app recording user.');
+      return;
+    }
+
+    if (newUserForm.role === 'do' && newUserForm.assignedGroupIds.length === 0) {
+      showNotification('error', 'Please assign at least one SHG to this Development Officer (DO).');
       return;
     }
 
@@ -447,18 +507,20 @@ export const MasterPage: React.FC = () => {
       await api.createUser({
         username: newUserForm.username.trim().toLowerCase(),
         password: newUserForm.password,
-        fullName: newUserForm.fullName,
+        fullName: newUserForm.fullName.trim(),
         role: newUserForm.role,
-        groupId: newUserForm.role === 'operator' ? newUserForm.groupId : undefined,
+        groupId: newUserForm.role === 'shg' ? newUserForm.groupId : (newUserForm.assignedGroupIds[0] || undefined),
+        assignedGroupIds: newUserForm.role === 'do' ? newUserForm.assignedGroupIds : (newUserForm.role === 'shg' ? [newUserForm.groupId] : []),
       });
-      showNotification('success', `User account "${newUserForm.username}" created.`);
+      showNotification('success', `User account "@${newUserForm.username}" created successfully with role ${newUserForm.role.toUpperCase()}.`);
       setShowCreateUserModal(false);
       setNewUserForm({
         username: '',
         password: '',
         fullName: '',
-        role: 'operator',
+        role: 'admin',
         groupId: '',
+        assignedGroupIds: [],
       });
       loadData();
     } catch (err: any) {
@@ -482,24 +544,423 @@ export const MasterPage: React.FC = () => {
 
   const filteredUsers = users.filter((u) => {
     const q = userSearch.toLowerCase();
+    const matchAssigned = u.assignedGroupNames?.some((name) => name.toLowerCase().includes(q));
     return (
       u.username.toLowerCase().includes(q) ||
       u.fullName.toLowerCase().includes(q) ||
       u.role.toLowerCase().includes(q) ||
-      (u.groupName && u.groupName.toLowerCase().includes(q))
+      (u.groupName && u.groupName.toLowerCase().includes(q)) ||
+      matchAssigned
     );
   });
+
+  // Effective current location values (from select or new input)
+  const currentLocState = locFormState.stateMode === 'new' ? locFormState.stateNew : locFormState.stateSelect;
+  const currentLocDistrict = locFormState.districtMode === 'new' ? locFormState.districtNew : locFormState.districtSelect;
+  const currentLocBlock = locFormState.blockMode === 'new' ? locFormState.blockNew : locFormState.blockSelect;
+  const currentLocPanchayat = locFormState.panchayatMode === 'new' ? locFormState.panchayatNew : locFormState.panchayatSelect;
+  const currentLocVillage = locFormState.villageMode === 'new' ? locFormState.villageNew : locFormState.villageSelect;
+
+  // Available options derived from masterLocations
+  const availableLocStates = useMemo(() => {
+    return Array.from(new Set(masterLocations.map((l) => l.state).filter(Boolean))).sort();
+  }, [masterLocations]);
+
+  const availableLocDistricts = useMemo(() => {
+    if (!currentLocState || locFormState.stateMode === 'new') return [];
+    return Array.from(
+      new Set(
+        masterLocations
+          .filter((l) => l.state.toLowerCase() === currentLocState.toLowerCase())
+          .map((l) => l.district)
+          .filter(Boolean),
+      ),
+    ).sort();
+  }, [masterLocations, currentLocState, locFormState.stateMode]);
+
+  const availableLocBlocks = useMemo(() => {
+    if (!currentLocState || !currentLocDistrict || locFormState.districtMode === 'new') return [];
+    return Array.from(
+      new Set(
+        masterLocations
+          .filter(
+            (l) =>
+              l.state.toLowerCase() === currentLocState.toLowerCase() &&
+              l.district.toLowerCase() === currentLocDistrict.toLowerCase(),
+          )
+          .map((l) => l.block)
+          .filter(Boolean),
+      ),
+    ).sort();
+  }, [masterLocations, currentLocState, currentLocDistrict, locFormState.districtMode]);
+
+  const availableLocPanchayats = useMemo(() => {
+    if (!currentLocState || !currentLocDistrict || !currentLocBlock || locFormState.blockMode === 'new') return [];
+    return Array.from(
+      new Set(
+        masterLocations
+          .filter(
+            (l) =>
+              l.state.toLowerCase() === currentLocState.toLowerCase() &&
+              l.district.toLowerCase() === currentLocDistrict.toLowerCase() &&
+              l.block.toLowerCase() === currentLocBlock.toLowerCase(),
+          )
+          .map((l) => l.panchayat)
+          .filter(Boolean),
+      ),
+    ).sort();
+  }, [masterLocations, currentLocState, currentLocDistrict, currentLocBlock, locFormState.blockMode]);
+
+  const availableLocVillages = useMemo(() => {
+    if (!currentLocState || !currentLocDistrict || !currentLocBlock || !currentLocPanchayat || locFormState.panchayatMode === 'new')
+      return [];
+    return Array.from(
+      new Set(
+        masterLocations
+          .filter(
+            (l) =>
+              l.state.toLowerCase() === currentLocState.toLowerCase() &&
+              l.district.toLowerCase() === currentLocDistrict.toLowerCase() &&
+              l.block.toLowerCase() === currentLocBlock.toLowerCase() &&
+              l.panchayat.toLowerCase() === currentLocPanchayat.toLowerCase(),
+          )
+          .map((l) => l.village)
+          .filter(Boolean),
+      ),
+    ).sort();
+  }, [masterLocations, currentLocState, currentLocDistrict, currentLocBlock, currentLocPanchayat, locFormState.panchayatMode]);
+
+  // User Module Cascading SHG Filter Options
+  const userShgStates = useMemo(() => {
+    return Array.from(new Set(shgs.map((g) => g.state).filter(Boolean))).sort();
+  }, [shgs]);
+
+  const userShgDistricts = useMemo(() => {
+    let list = shgs;
+    if (userShgState) list = list.filter((g) => g.state === userShgState);
+    return Array.from(new Set(list.map((g) => g.district).filter(Boolean))).sort();
+  }, [shgs, userShgState]);
+
+  const userShgBlocks = useMemo(() => {
+    let list = shgs;
+    if (userShgState) list = list.filter((g) => g.state === userShgState);
+    if (userShgDistrict) list = list.filter((g) => g.district === userShgDistrict);
+    return Array.from(new Set(list.map((g) => g.block).filter(Boolean))).sort();
+  }, [shgs, userShgState, userShgDistrict]);
+
+  const userShgPanchayats = useMemo(() => {
+    let list = shgs;
+    if (userShgState) list = list.filter((g) => g.state === userShgState);
+    if (userShgDistrict) list = list.filter((g) => g.district === userShgDistrict);
+    if (userShgBlock) list = list.filter((g) => g.block === userShgBlock);
+    return Array.from(new Set(list.map((g) => g.panchayat).filter(Boolean))).sort();
+  }, [shgs, userShgState, userShgDistrict, userShgBlock]);
+
+  const userShgVillages = useMemo(() => {
+    let list = shgs;
+    if (userShgState) list = list.filter((g) => g.state === userShgState);
+    if (userShgDistrict) list = list.filter((g) => g.district === userShgDistrict);
+    if (userShgBlock) list = list.filter((g) => g.block === userShgBlock);
+    if (userShgPanchayat) list = list.filter((g) => g.panchayat === userShgPanchayat);
+    return Array.from(new Set(list.map((g) => g.village).filter(Boolean) as string[])).sort();
+  }, [shgs, userShgState, userShgDistrict, userShgBlock, userShgPanchayat]);
+
+  // SHGs matching current cascading dropdown selection
+  const userFilteredShgs = useMemo(() => {
+    return shgs.filter((g) => {
+      if (userShgState && g.state !== userShgState) return false;
+      if (userShgDistrict && g.district !== userShgDistrict) return false;
+      if (userShgBlock && g.block !== userShgBlock) return false;
+      if (userShgPanchayat && g.panchayat !== userShgPanchayat) return false;
+      if (userShgVillage && g.village !== userShgVillage) return false;
+      return true;
+    });
+  }, [shgs, userShgState, userShgDistrict, userShgBlock, userShgPanchayat, userShgVillage]);
+
+  // Location Master Cascading Handlers
+  const handleLocStateChange = (val: string) => {
+    if (val === '__NEW__') {
+      setLocFormState((prev) => ({
+        ...prev,
+        stateMode: 'new',
+        stateNew: '',
+        districtMode: 'new',
+        districtSelect: '',
+        districtNew: '',
+        blockMode: 'new',
+        blockSelect: '',
+        blockNew: '',
+        panchayatMode: 'new',
+        panchayatSelect: '',
+        panchayatNew: '',
+        villageMode: 'new',
+        villageSelect: '',
+        villageNew: '',
+        pincode: '',
+      }));
+    } else {
+      const distList = Array.from(
+        new Set(masterLocations.filter((l) => l.state.toLowerCase() === val.toLowerCase()).map((l) => l.district).filter(Boolean)),
+      ).sort();
+      const firstDist = distList[0] || '';
+      const blkList = firstDist
+        ? Array.from(
+            new Set(
+              masterLocations
+                .filter((l) => l.state.toLowerCase() === val.toLowerCase() && l.district.toLowerCase() === firstDist.toLowerCase())
+                .map((l) => l.block)
+                .filter(Boolean),
+            ),
+          ).sort()
+        : [];
+      const firstBlk = blkList[0] || '';
+      const panList = firstBlk
+        ? Array.from(
+            new Set(
+              masterLocations
+                .filter(
+                  (l) =>
+                    l.state.toLowerCase() === val.toLowerCase() &&
+                    l.district.toLowerCase() === firstDist.toLowerCase() &&
+                    l.block.toLowerCase() === firstBlk.toLowerCase(),
+                )
+                .map((l) => l.panchayat)
+                .filter(Boolean),
+            ),
+          ).sort()
+        : [];
+      const firstPan = panList[0] || '';
+      const knownPin = masterLocations.find(
+        (l) =>
+          l.state.toLowerCase() === val.toLowerCase() &&
+          l.district.toLowerCase() === firstDist.toLowerCase() &&
+          l.block.toLowerCase() === firstBlk.toLowerCase() &&
+          l.panchayat.toLowerCase() === firstPan.toLowerCase(),
+      )?.pincode || '';
+
+      setLocFormState((prev) => ({
+        ...prev,
+        stateMode: 'select',
+        stateSelect: val,
+        stateNew: '',
+        districtMode: firstDist ? 'select' : 'new',
+        districtSelect: firstDist,
+        districtNew: '',
+        blockMode: firstBlk ? 'select' : 'new',
+        blockSelect: firstBlk,
+        blockNew: '',
+        panchayatMode: firstPan ? 'select' : 'new',
+        panchayatSelect: firstPan,
+        panchayatNew: '',
+        villageMode: 'new',
+        villageSelect: '',
+        villageNew: '',
+        pincode: knownPin,
+      }));
+    }
+  };
+
+  const handleLocDistrictChange = (val: string) => {
+    if (val === '__NEW__') {
+      setLocFormState((prev) => ({
+        ...prev,
+        districtMode: 'new',
+        districtNew: '',
+        blockMode: 'new',
+        blockSelect: '',
+        blockNew: '',
+        panchayatMode: 'new',
+        panchayatSelect: '',
+        panchayatNew: '',
+        villageMode: 'new',
+        villageSelect: '',
+        villageNew: '',
+      }));
+    } else {
+      const currentState = locFormState.stateMode === 'new' ? locFormState.stateNew : locFormState.stateSelect;
+      const blkList = Array.from(
+        new Set(
+          masterLocations
+            .filter((l) => l.state.toLowerCase() === currentState.toLowerCase() && l.district.toLowerCase() === val.toLowerCase())
+            .map((l) => l.block)
+            .filter(Boolean),
+        ),
+      ).sort();
+      const firstBlk = blkList[0] || '';
+      const panList = firstBlk
+        ? Array.from(
+            new Set(
+              masterLocations
+                .filter(
+                  (l) =>
+                    l.state.toLowerCase() === currentState.toLowerCase() &&
+                    l.district.toLowerCase() === val.toLowerCase() &&
+                    l.block.toLowerCase() === firstBlk.toLowerCase(),
+                )
+                .map((l) => l.panchayat)
+                .filter(Boolean),
+            ),
+          ).sort()
+        : [];
+      const firstPan = panList[0] || '';
+      const knownPin = masterLocations.find(
+        (l) =>
+          l.state.toLowerCase() === currentState.toLowerCase() &&
+          l.district.toLowerCase() === val.toLowerCase() &&
+          l.block.toLowerCase() === firstBlk.toLowerCase() &&
+          l.panchayat.toLowerCase() === firstPan.toLowerCase(),
+      )?.pincode || '';
+
+      setLocFormState((prev) => ({
+        ...prev,
+        districtMode: 'select',
+        districtSelect: val,
+        districtNew: '',
+        blockMode: firstBlk ? 'select' : 'new',
+        blockSelect: firstBlk,
+        blockNew: '',
+        panchayatMode: firstPan ? 'select' : 'new',
+        panchayatSelect: firstPan,
+        panchayatNew: '',
+        villageMode: 'new',
+        villageSelect: '',
+        villageNew: '',
+        pincode: knownPin || prev.pincode,
+      }));
+    }
+  };
+
+  const handleLocBlockChange = (val: string) => {
+    if (val === '__NEW__') {
+      setLocFormState((prev) => ({
+        ...prev,
+        blockMode: 'new',
+        blockNew: '',
+        panchayatMode: 'new',
+        panchayatSelect: '',
+        panchayatNew: '',
+        villageMode: 'new',
+        villageSelect: '',
+        villageNew: '',
+      }));
+    } else {
+      const currentState = locFormState.stateMode === 'new' ? locFormState.stateNew : locFormState.stateSelect;
+      const currentDistrict = locFormState.districtMode === 'new' ? locFormState.districtNew : locFormState.districtSelect;
+      const panList = Array.from(
+        new Set(
+          masterLocations
+            .filter(
+              (l) =>
+                l.state.toLowerCase() === currentState.toLowerCase() &&
+                l.district.toLowerCase() === currentDistrict.toLowerCase() &&
+                l.block.toLowerCase() === val.toLowerCase(),
+            )
+            .map((l) => l.panchayat)
+            .filter(Boolean),
+        ),
+      ).sort();
+      const firstPan = panList[0] || '';
+      const knownPin = masterLocations.find(
+        (l) =>
+          l.state.toLowerCase() === currentState.toLowerCase() &&
+          l.district.toLowerCase() === currentDistrict.toLowerCase() &&
+          l.block.toLowerCase() === val.toLowerCase() &&
+          l.panchayat.toLowerCase() === firstPan.toLowerCase(),
+      )?.pincode || '';
+
+      setLocFormState((prev) => ({
+        ...prev,
+        blockMode: 'select',
+        blockSelect: val,
+        blockNew: '',
+        panchayatMode: firstPan ? 'select' : 'new',
+        panchayatSelect: firstPan,
+        panchayatNew: '',
+        villageMode: 'new',
+        villageSelect: '',
+        villageNew: '',
+        pincode: knownPin || prev.pincode,
+      }));
+    }
+  };
+
+  const handleLocPanchayatChange = (val: string) => {
+    if (val === '__NEW__') {
+      setLocFormState((prev) => ({
+        ...prev,
+        panchayatMode: 'new',
+        panchayatNew: '',
+        villageMode: 'new',
+        villageSelect: '',
+        villageNew: '',
+      }));
+    } else {
+      const currentState = locFormState.stateMode === 'new' ? locFormState.stateNew : locFormState.stateSelect;
+      const currentDistrict = locFormState.districtMode === 'new' ? locFormState.districtNew : locFormState.districtSelect;
+      const currentBlock = locFormState.blockMode === 'new' ? locFormState.blockNew : locFormState.blockSelect;
+      const knownPin = masterLocations.find(
+        (l) =>
+          l.state.toLowerCase() === currentState.toLowerCase() &&
+          l.district.toLowerCase() === currentDistrict.toLowerCase() &&
+          l.block.toLowerCase() === currentBlock.toLowerCase() &&
+          l.panchayat.toLowerCase() === val.toLowerCase(),
+      )?.pincode || '';
+
+      setLocFormState((prev) => ({
+        ...prev,
+        panchayatMode: 'select',
+        panchayatSelect: val,
+        panchayatNew: '',
+        villageMode: 'new',
+        villageSelect: '',
+        villageNew: '',
+        pincode: knownPin || prev.pincode,
+      }));
+    }
+  };
 
   // Location Master Handlers
   const openAddLocationModal = () => {
     setEditingLocation(null);
-    setLocationForm({
-      state: 'Bihar',
-      district: 'Patna',
-      block: '',
-      panchayat: '',
-      village: '',
-      pincode: '',
+    const defaultState = availableLocStates[0] || 'Bihar';
+    const distList = defaultState
+      ? Array.from(new Set(masterLocations.filter((l) => l.state === defaultState).map((l) => l.district).filter(Boolean))).sort()
+      : [];
+    const defaultDistrict = distList[0] || '';
+    const blkList = defaultDistrict
+      ? Array.from(new Set(masterLocations.filter((l) => l.state === defaultState && l.district === defaultDistrict).map((l) => l.block).filter(Boolean))).sort()
+      : [];
+    const defaultBlock = blkList[0] || '';
+    const panList = defaultBlock
+      ? Array.from(new Set(masterLocations.filter((l) => l.state === defaultState && l.district === defaultDistrict && l.block === defaultBlock).map((l) => l.panchayat).filter(Boolean))).sort()
+      : [];
+    const defaultPanchayat = panList[0] || '';
+    const knownPin = masterLocations.find(
+      (l) => l.state === defaultState && l.district === defaultDistrict && l.block === defaultBlock && l.panchayat === defaultPanchayat,
+    )?.pincode || '';
+
+    setLocFormState({
+      stateMode: defaultState ? 'select' : 'new',
+      stateSelect: defaultState,
+      stateNew: '',
+
+      districtMode: defaultDistrict ? 'select' : 'new',
+      districtSelect: defaultDistrict,
+      districtNew: '',
+
+      blockMode: defaultBlock ? 'select' : 'new',
+      blockSelect: defaultBlock,
+      blockNew: '',
+
+      panchayatMode: defaultPanchayat ? 'select' : 'new',
+      panchayatSelect: defaultPanchayat,
+      panchayatNew: '',
+
+      villageMode: 'new',
+      villageSelect: '',
+      villageNew: '',
+
+      pincode: knownPin,
       cascadeUpdateGroups: false,
     });
     setShowLocationModal(true);
@@ -507,12 +968,27 @@ export const MasterPage: React.FC = () => {
 
   const openEditLocationModal = (loc: MasterLocation) => {
     setEditingLocation(loc);
-    setLocationForm({
-      state: loc.state,
-      district: loc.district,
-      block: loc.block,
-      panchayat: loc.panchayat,
-      village: loc.village,
+    setLocFormState({
+      stateMode: 'select',
+      stateSelect: loc.state,
+      stateNew: loc.state,
+
+      districtMode: 'select',
+      districtSelect: loc.district,
+      districtNew: loc.district,
+
+      blockMode: 'select',
+      blockSelect: loc.block,
+      blockNew: loc.block,
+
+      panchayatMode: 'select',
+      panchayatSelect: loc.panchayat,
+      panchayatNew: loc.panchayat,
+
+      villageMode: 'new',
+      villageSelect: loc.village,
+      villageNew: loc.village,
+
       pincode: loc.pincode || '',
       cascadeUpdateGroups: false,
     });
@@ -521,13 +997,14 @@ export const MasterPage: React.FC = () => {
 
   const handleSaveLocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      !locationForm.state.trim() ||
-      !locationForm.district.trim() ||
-      !locationForm.block.trim() ||
-      !locationForm.panchayat.trim() ||
-      !locationForm.village.trim()
-    ) {
+    const state = currentLocState.trim();
+    const district = currentLocDistrict.trim();
+    const block = currentLocBlock.trim();
+    const panchayat = currentLocPanchayat.trim();
+    const village = currentLocVillage.trim();
+    const pincode = locFormState.pincode.trim();
+
+    if (!state || !district || !block || !panchayat || !village) {
       showNotification('error', 'State, District, Block, Panchayat, and Village are required.');
       return;
     }
@@ -536,25 +1013,25 @@ export const MasterPage: React.FC = () => {
       setSavingLocation(true);
       if (editingLocation) {
         await api.updateMasterLocation(editingLocation.id, {
-          state: locationForm.state.trim(),
-          district: locationForm.district.trim(),
-          block: locationForm.block.trim(),
-          panchayat: locationForm.panchayat.trim(),
-          village: locationForm.village.trim(),
-          pincode: locationForm.pincode.trim() || undefined,
-          cascadeUpdateGroups: locationForm.cascadeUpdateGroups,
+          state,
+          district,
+          block,
+          panchayat,
+          village,
+          pincode: pincode || undefined,
+          cascadeUpdateGroups: locFormState.cascadeUpdateGroups,
         });
-        showNotification('success', `Location "${locationForm.village}, ${locationForm.panchayat}" updated successfully.`);
+        showNotification('success', `Location "${village}, ${panchayat}" updated successfully.`);
       } else {
         await api.createMasterLocation({
-          state: locationForm.state.trim(),
-          district: locationForm.district.trim(),
-          block: locationForm.block.trim(),
-          panchayat: locationForm.panchayat.trim(),
-          village: locationForm.village.trim(),
-          pincode: locationForm.pincode.trim() || undefined,
+          state,
+          district,
+          block,
+          panchayat,
+          village,
+          pincode: pincode || undefined,
         });
-        showNotification('success', `Master location "${locationForm.village}, ${locationForm.panchayat}" added successfully.`);
+        showNotification('success', `Master location "${village}, ${panchayat}" created successfully.`);
       }
       setShowLocationModal(false);
       setEditingLocation(null);
@@ -1438,29 +1915,18 @@ export const MasterPage: React.FC = () => {
                       username: '',
                       password: '',
                       fullName: '',
-                      role: 'admin',
+                      role: 'do',
                       groupId: '',
+                      assignedGroupIds: [],
                     });
+                    setUserShgState('');
+                    setUserShgDistrict('');
+                    setUserShgBlock('');
+                    setUserShgPanchayat('');
+                    setUserShgVillage('');
                     setShowCreateUserModal(true);
                   }}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold transition shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Create Admin User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewUserForm({
-                      username: '',
-                      password: '',
-                      fullName: '',
-                      role: 'operator',
-                      groupId: '',
-                    });
-                    setShowCreateUserModal(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/25 transition shrink-0"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/25 transition shrink-0 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   Create New User
@@ -1490,7 +1956,7 @@ export const MasterPage: React.FC = () => {
                   <tr>
                     <th className="p-3.5 font-semibold">User Details</th>
                     <th className="p-3.5 font-semibold">Role</th>
-                    <th className="p-3.5 font-semibold">Assigned SHG</th>
+                    <th className="p-3.5 font-semibold">Assigned SHG / Access</th>
                     <th className="p-3.5 font-semibold">Status & Lock</th>
                     <th className="p-3.5 font-semibold">Last Login</th>
                     <th className="p-3.5 font-semibold text-right">Actions</th>
@@ -1499,10 +1965,21 @@ export const MasterPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-800/60">
                   {filteredUsers.map((u) => {
                     const roleColors: Record<string, string> = {
-                      super_admin: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
                       admin: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-                      operator: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+                      do: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+                      shg: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
                       viewer: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+                      super_admin: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+                      operator: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+                    };
+
+                    const roleLabels: Record<string, string> = {
+                      admin: 'ADMIN',
+                      do: 'DO (Dev Officer)',
+                      shg: 'SHG (Field PWA)',
+                      viewer: 'VIEWER',
+                      super_admin: 'SUPER ADMIN',
+                      operator: 'SHG OPERATOR',
                     };
 
                     return (
@@ -1518,15 +1995,48 @@ export const MasterPage: React.FC = () => {
                               roleColors[u.role] || 'bg-slate-800 text-slate-300'
                             }`}
                           >
-                            {u.role.replace('_', ' ').toUpperCase()}
+                            {roleLabels[u.role] || u.role.replace('_', ' ').toUpperCase()}
                           </span>
                         </td>
 
                         <td className="p-3.5 text-slate-300">
-                          {u.groupName ? (
+                          {u.role === 'admin' || u.role === 'super_admin' ? (
+                            <span className="text-slate-400 italic">All Groups (Global Admin)</span>
+                          ) : u.role === 'viewer' ? (
+                            <span className="text-slate-400 italic">All Groups (Read-only)</span>
+                          ) : u.role === 'shg' || u.role === 'operator' ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                PWA
+                              </span>
+                              <span className="font-medium text-slate-200">{u.groupName || 'Unassigned SHG'}</span>
+                            </div>
+                          ) : u.role === 'do' ? (
+                            u.assignedGroupNames && u.assignedGroupNames.length > 0 ? (
+                              <div className="flex flex-wrap items-center gap-1.5 max-w-sm">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                  {u.assignedGroupNames.length} SHGs
+                                </span>
+                                {u.assignedGroupNames.slice(0, 3).map((name, i) => (
+                                  <span key={i} className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] truncate max-w-[110px]" title={name}>
+                                    {name}
+                                  </span>
+                                ))}
+                                {u.assignedGroupNames.length > 3 && (
+                                  <span className="text-[10px] text-slate-400 font-medium" title={u.assignedGroupNames.join(', ')}>
+                                    +{u.assignedGroupNames.length - 3} more
+                                  </span>
+                                )}
+                              </div>
+                            ) : u.groupName ? (
+                              <span className="font-medium text-slate-200">{u.groupName}</span>
+                            ) : (
+                              <span className="text-amber-400/80 italic text-[11px]">No SHGs Assigned</span>
+                            )
+                          ) : u.groupName ? (
                             <span className="font-medium text-slate-200">{u.groupName}</span>
                           ) : (
-                            <span className="text-slate-500 italic">All Groups (Global)</span>
+                            <span className="text-slate-500 italic">None</span>
                           )}
                         </td>
 
@@ -1854,133 +2364,369 @@ export const MasterPage: React.FC = () => {
 
       {/* ADD / EDIT MASTER LOCATION MODAL */}
       {showLocationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-indigo-400" />
-                {editingLocation ? 'Edit Master Location' : 'Add New Master Location'}
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-5 my-8">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-800">
+              <div>
+                <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-indigo-400" />
+                  {editingLocation ? 'Edit Master Location Record' : 'Hierarchical Location Master Builder'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Step-by-step administrative hierarchy: State ➔ District ➔ Block ➔ Panchayat ➔ Village ➔ PIN
+                </p>
+              </div>
               <button
                 onClick={() => setShowLocationModal(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800 transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* Current Path Hierarchy Breadcrumb */}
+            <div className="px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-300 flex items-center gap-1.5 flex-wrap">
+              <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Hierarchy:</span>
+              <span className={`font-semibold ${currentLocState ? 'text-indigo-300' : 'text-slate-400 italic'}`}>
+                {currentLocState || 'State'}
+              </span>
+              <span className="text-slate-400">➔</span>
+              <span className={`font-semibold ${currentLocDistrict ? 'text-indigo-300' : 'text-slate-400 italic'}`}>
+                {currentLocDistrict || 'District'}
+              </span>
+              <span className="text-slate-400">➔</span>
+              <span className={`font-semibold ${currentLocBlock ? 'text-indigo-300' : 'text-slate-400 italic'}`}>
+                {currentLocBlock || 'Block'}
+              </span>
+              <span className="text-slate-400">➔</span>
+              <span className={`font-semibold ${currentLocPanchayat ? 'text-indigo-300' : 'text-slate-400 italic'}`}>
+                {currentLocPanchayat || 'Panchayat'}
+              </span>
+              <span className="text-slate-400">➔</span>
+              <span className={`font-semibold ${currentLocVillage ? 'text-emerald-400' : 'text-slate-400 italic'}`}>
+                {currentLocVillage || 'Village'}
+              </span>
+              {locFormState.pincode && (
+                <span className="ml-auto text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  PIN: {locFormState.pincode}
+                </span>
+              )}
+            </div>
+
             <form onSubmit={handleSaveLocation} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">State *</label>
-                  <input
-                    type="text"
-                    required
-                    list="shg-states"
-                    placeholder="e.g. Bihar"
-                    value={locationForm.state}
-                    onChange={(e) => setLocationForm({ ...locationForm, state: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                  />
+              {/* Step 1 & Step 2: State and District */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 1. STATE */}
+                <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-medium flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 font-bold text-[10px] flex items-center justify-center">1</span>
+                      State / UT *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMode = locFormState.stateMode === 'select' ? 'new' : 'select';
+                        if (nextMode === 'new') {
+                          handleLocStateChange('__NEW__');
+                        } else {
+                          const fallbackState = availableLocStates[0] || '';
+                          handleLocStateChange(fallbackState);
+                        }
+                      }}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                    >
+                      {locFormState.stateMode === 'select' ? '+ Create New State' : '← Select Existing'}
+                    </button>
+                  </div>
+
+                  {locFormState.stateMode === 'select' ? (
+                    <select
+                      value={locFormState.stateSelect}
+                      onChange={(e) => handleLocStateChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                    >
+                      <option value="">-- Choose Existing State --</option>
+                      {availableLocStates.map((st) => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                      <option value="__NEW__" className="text-indigo-400 font-semibold">+ Create New State...</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      placeholder="Enter new state (e.g. Bihar)"
+                      value={locFormState.stateNew}
+                      onChange={(e) => setLocFormState({ ...locFormState, stateNew: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-indigo-500/50 text-slate-200 text-xs focus:outline-none focus:border-indigo-400"
+                    />
+                  )}
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">District *</label>
-                  <input
-                    type="text"
-                    required
-                    list="shg-districts"
-                    placeholder="e.g. Patna"
-                    value={locationForm.district}
-                    onChange={(e) => setLocationForm({ ...locationForm, district: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                  />
+                {/* 2. DISTRICT */}
+                <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-medium flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 font-bold text-[10px] flex items-center justify-center">2</span>
+                      District *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMode = locFormState.districtMode === 'select' ? 'new' : 'select';
+                        if (nextMode === 'new') {
+                          handleLocDistrictChange('__NEW__');
+                        } else {
+                          const fallbackDist = availableLocDistricts[0] || '';
+                          handleLocDistrictChange(fallbackDist);
+                        }
+                      }}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                    >
+                      {locFormState.districtMode === 'select' ? '+ Create New District' : '← Select Existing'}
+                    </button>
+                  </div>
+
+                  {locFormState.districtMode === 'select' && availableLocDistricts.length > 0 ? (
+                    <select
+                      value={locFormState.districtSelect}
+                      onChange={(e) => handleLocDistrictChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                    >
+                      <option value="">-- Choose District in {currentLocState || 'State'} --</option>
+                      {availableLocDistricts.map((dst) => (
+                        <option key={dst} value={dst}>{dst}</option>
+                      ))}
+                      <option value="__NEW__" className="text-indigo-400 font-semibold">+ Create New District...</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter district name (e.g. Patna)"
+                      value={locFormState.districtNew}
+                      onChange={(e) => setLocFormState({ ...locFormState, districtNew: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-indigo-500/50 text-slate-200 text-xs focus:outline-none focus:border-indigo-400"
+                    />
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">Block / Sub-District *</label>
-                  <input
-                    type="text"
-                    required
-                    list="shg-blocks"
-                    placeholder="e.g. Phulwari Sharif"
-                    value={locationForm.block}
-                    onChange={(e) => setLocationForm({ ...locationForm, block: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                  />
+              {/* Step 3 & Step 4: Block and Gram Panchayat */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 3. BLOCK */}
+                <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-medium flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 font-bold text-[10px] flex items-center justify-center">3</span>
+                      Block / Sub-District *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMode = locFormState.blockMode === 'select' ? 'new' : 'select';
+                        if (nextMode === 'new') {
+                          handleLocBlockChange('__NEW__');
+                        } else {
+                          const fallbackBlk = availableLocBlocks[0] || '';
+                          handleLocBlockChange(fallbackBlk);
+                        }
+                      }}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                    >
+                      {locFormState.blockMode === 'select' ? '+ Create New Block' : '← Select Existing'}
+                    </button>
+                  </div>
+
+                  {locFormState.blockMode === 'select' && availableLocBlocks.length > 0 ? (
+                    <select
+                      value={locFormState.blockSelect}
+                      onChange={(e) => handleLocBlockChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                    >
+                      <option value="">-- Choose Block in {currentLocDistrict || 'District'} --</option>
+                      {availableLocBlocks.map((blk) => (
+                        <option key={blk} value={blk}>{blk}</option>
+                      ))}
+                      <option value="__NEW__" className="text-indigo-400 font-semibold">+ Create New Block...</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter block name (e.g. Phulwari Sharif)"
+                      value={locFormState.blockNew}
+                      onChange={(e) => setLocFormState({ ...locFormState, blockNew: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-indigo-500/50 text-slate-200 text-xs focus:outline-none focus:border-indigo-400"
+                    />
+                  )}
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">Gram Panchayat *</label>
-                  <input
-                    type="text"
-                    required
-                    list="shg-panchayats"
-                    placeholder="e.g. Rampur"
-                    value={locationForm.panchayat}
-                    onChange={(e) => setLocationForm({ ...locationForm, panchayat: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                  />
+                {/* 4. GRAM PANCHAYAT */}
+                <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-medium flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 font-bold text-[10px] flex items-center justify-center">4</span>
+                      Gram Panchayat *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMode = locFormState.panchayatMode === 'select' ? 'new' : 'select';
+                        if (nextMode === 'new') {
+                          handleLocPanchayatChange('__NEW__');
+                        } else {
+                          const fallbackPan = availableLocPanchayats[0] || '';
+                          handleLocPanchayatChange(fallbackPan);
+                        }
+                      }}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                    >
+                      {locFormState.panchayatMode === 'select' ? '+ Create New Panchayat' : '← Select Existing'}
+                    </button>
+                  </div>
+
+                  {locFormState.panchayatMode === 'select' && availableLocPanchayats.length > 0 ? (
+                    <select
+                      value={locFormState.panchayatSelect}
+                      onChange={(e) => handleLocPanchayatChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                    >
+                      <option value="">-- Choose Panchayat in {currentLocBlock || 'Block'} --</option>
+                      {availableLocPanchayats.map((pan) => (
+                        <option key={pan} value={pan}>{pan}</option>
+                      ))}
+                      <option value="__NEW__" className="text-indigo-400 font-semibold">+ Create New Panchayat...</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter Gram Panchayat (e.g. Rampur)"
+                      value={locFormState.panchayatNew}
+                      onChange={(e) => setLocFormState({ ...locFormState, panchayatNew: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-indigo-500/50 text-slate-200 text-xs focus:outline-none focus:border-indigo-400"
+                    />
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">Village / Hamlet *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Rampur / Korji"
-                    value={locationForm.village}
-                    onChange={(e) => setLocationForm({ ...locationForm, village: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                  />
+              {/* Step 5 & Step 6: Village and Pincode */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 5. VILLAGE / HAMLET */}
+                <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-medium flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] flex items-center justify-center">5</span>
+                      Village / Hamlet *
+                    </label>
+                    {availableLocVillages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextMode = locFormState.villageMode === 'select' ? 'new' : 'select';
+                          setLocFormState({
+                            ...locFormState,
+                            villageMode: nextMode,
+                            villageSelect: nextMode === 'select' ? (availableLocVillages[0] || '') : '',
+                          });
+                        }}
+                        className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
+                      >
+                        {locFormState.villageMode === 'select' ? '+ Type New Village' : '← Select Existing'}
+                      </button>
+                    )}
+                  </div>
+
+                  {locFormState.villageMode === 'select' && availableLocVillages.length > 0 ? (
+                    <select
+                      value={locFormState.villageSelect}
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW__') {
+                          setLocFormState({ ...locFormState, villageMode: 'new', villageNew: '' });
+                        } else {
+                          setLocFormState({ ...locFormState, villageSelect: e.target.value });
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                    >
+                      <option value="">-- Choose Existing Village in {currentLocPanchayat || 'Panchayat'} --</option>
+                      {availableLocVillages.map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                      <option value="__NEW__" className="text-indigo-400 font-semibold">+ Create New Village...</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rampur / Korji"
+                      value={locFormState.villageNew}
+                      onChange={(e) => setLocFormState({ ...locFormState, villageNew: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-emerald-500/50 text-slate-200 text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  )}
+                  <p className="text-[10px] text-slate-400">
+                    {locFormState.villageMode === 'new' ? 'Creating a new village record under this hierarchy' : 'Existing village record selected'}
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">Postal Code / PIN</label>
+                {/* 6. POSTAL CODE / PIN */}
+                <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-medium flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 font-bold text-[10px] flex items-center justify-center">6</span>
+                      Postal Code / PIN
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-mono">6 digits</span>
+                  </div>
+
                   <input
                     type="text"
+                    maxLength={6}
                     placeholder="e.g. 801505"
-                    value={locationForm.pincode}
-                    onChange={(e) => setLocationForm({ ...locationForm, pincode: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 font-mono"
+                    value={locFormState.pincode}
+                    onChange={(e) => setLocFormState({ ...locFormState, pincode: e.target.value.replace(/\D/g, '') })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-mono"
                   />
+                  <p className="text-[10px] text-slate-400">
+                    Indian Postal Index Number for delivery & geographic lookup
+                  </p>
                 </div>
               </div>
 
               {editingLocation && (
-                <div className="pt-2 border-t border-slate-800">
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={locationForm.cascadeUpdateGroups}
-                      onChange={(e) => setLocationForm({ ...locationForm, cascadeUpdateGroups: e.target.checked })}
+                      checked={locFormState.cascadeUpdateGroups}
+                      onChange={(e) => setLocFormState({ ...locFormState, cascadeUpdateGroups: e.target.checked })}
                       className="rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span className="text-slate-300 text-xs">
-                      Cascade update registered SHGs that match "{editingLocation.panchayat}, {editingLocation.block}"
+                    <span className="text-amber-200 text-xs">
+                      Cascade update registered SHGs matching "{editingLocation.panchayat}, {editingLocation.block}" to new location details
                     </span>
                   </label>
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowLocationModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition"
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingLocation}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/25 transition disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/25 transition disabled:opacity-50 cursor-pointer"
                 >
-                  {savingLocation ? 'Saving...' : editingLocation ? 'Update Location' : 'Save Location'}
+                  {savingLocation ? 'Saving...' : editingLocation ? 'Update Master Location' : 'Save Master Location'}
                 </button>
               </div>
             </form>
@@ -2107,101 +2853,522 @@ export const MasterPage: React.FC = () => {
 
       {/* CREATE USER MODAL */}
       {showCreateUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-indigo-400" />
-                Create MIS User
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-5 my-8">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-800">
+              <div>
+                <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-indigo-400" />
+                  Create New System User
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Provision new accounts with role-based access for Admin, DO, SHG (Field PWA), or Viewer.
+                </p>
+              </div>
               <button
                 onClick={() => setShowCreateUserModal(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800 transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Username *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. patna_auditor"
-                  value={newUserForm.username}
-                  onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Priya Sharma"
-                  value={newUserForm.fullName}
-                  onChange={(e) => setNewUserForm({ ...newUserForm, fullName: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Initial Password *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Min 6 characters"
-                  value={newUserForm.password}
-                  onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">System Role *</label>
-                <select
-                  value={newUserForm.role}
-                  onChange={(e: any) => setNewUserForm({ ...newUserForm, role: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="super_admin">Super Administrator (Full System Control)</option>
-                  <option value="admin">Regional Administrator (Approvals & Oversight)</option>
-                  <option value="operator">Operator (Field App Recording)</option>
-                  <option value="viewer">Viewer (Read-only Passbooks & Ledger)</option>
-                </select>
-              </div>
-
-              {newUserForm.role === 'operator' && (
+              {/* Basic Credentials */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Assign to SHG *</label>
-                  <select
-                    value={newUserForm.groupId}
-                    onChange={(e) => setNewUserForm({ ...newUserForm, groupId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="">-- Choose SHG --</option>
-                    {shgs.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name} ({g.district})
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-slate-300 font-medium mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Priya Sharma"
+                    value={newUserForm.fullName}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, fullName: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Username *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. do_patna_central"
+                    value={newUserForm.username}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Initial Password *</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Min 6 characters"
+                    value={newUserForm.password}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* System Role Selector */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1.5">User System Role *</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {[
+                    { id: 'admin', label: 'Admin', desc: 'Regional Oversight' },
+                    { id: 'do', label: 'DO', desc: 'Development Officer' },
+                    { id: 'shg', label: 'SHG', desc: 'Field PWA User' },
+                    { id: 'viewer', label: 'Viewer', desc: 'Auditor Read-only' },
+                  ].map((r) => {
+                    const isSelected = newUserForm.role === r.id;
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => {
+                          setNewUserForm({
+                            ...newUserForm,
+                            role: r.id as any,
+                            groupId: r.id === 'shg' ? newUserForm.groupId : '',
+                            assignedGroupIds: r.id === 'do' ? newUserForm.assignedGroupIds : [],
+                          });
+                        }}
+                        className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-sm'
+                            : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300'
+                        }`}
+                      >
+                        <div className="font-bold text-xs flex items-center justify-between">
+                          <span>{r.label}</span>
+                          {isSelected && <span className="w-2 h-2 rounded-full bg-indigo-400"></span>}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{r.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Role Context & Specific Configuration */}
+              {newUserForm.role === 'admin' && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-slate-300 space-y-1">
+                  <div className="font-semibold text-amber-300 flex items-center gap-1.5 text-xs">
+                    <Shield className="w-4 h-4 text-amber-400" />
+                    Administrator Account Capabilities
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Admins have full oversight across all SHGs, can manage the Geographic Location Master, view system logs, and create new <strong className="text-amber-200">Admin</strong> and <strong className="text-emerald-200">DO</strong> accounts.
+                  </p>
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2">
+              {newUserForm.role === 'viewer' && (
+                <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-300 space-y-1">
+                  <div className="font-semibold text-slate-200 flex items-center gap-1.5 text-xs">
+                    <Eye className="w-4 h-4 text-slate-400" />
+                    Viewer / Auditor Access
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Viewer accounts have read-only access to view MIS dashboards, passbooks, member rosters, and accounting ledgers across all SHGs without modification privileges.
+                  </p>
+                </div>
+              )}
+
+              {/* DO Role: Cascading Multi-SHG Selector */}
+              {newUserForm.role === 'do' && (
+                <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                    <div>
+                      <div className="font-semibold text-emerald-400 flex items-center gap-1.5 text-xs">
+                        <Building2 className="w-4 h-4 text-emerald-400" />
+                        Development Officer (DO) - Multiple SHG Assignment
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Filter by administrative hierarchy (State ➔ District ➔ Block ➔ Panchayat ➔ Village) and assign multiple SHGs to this DO.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                        {newUserForm.assignedGroupIds.length} SHGs Assigned
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Cascading Location Filter Dropdowns */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {/* 1. State */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">State</label>
+                      <select
+                        value={userShgState}
+                        onChange={(e) => {
+                          setUserShgState(e.target.value);
+                          setUserShgDistrict('');
+                          setUserShgBlock('');
+                          setUserShgPanchayat('');
+                          setUserShgVillage('');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All States ({userShgStates.length})</option>
+                        {userShgStates.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 2. District */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">District</label>
+                      <select
+                        value={userShgDistrict}
+                        onChange={(e) => {
+                          setUserShgDistrict(e.target.value);
+                          setUserShgBlock('');
+                          setUserShgPanchayat('');
+                          setUserShgVillage('');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All Districts ({userShgDistricts.length})</option>
+                        {userShgDistricts.map((dst) => (
+                          <option key={dst} value={dst}>{dst}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 3. Block */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">Block</label>
+                      <select
+                        value={userShgBlock}
+                        onChange={(e) => {
+                          setUserShgBlock(e.target.value);
+                          setUserShgPanchayat('');
+                          setUserShgVillage('');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All Blocks ({userShgBlocks.length})</option>
+                        {userShgBlocks.map((blk) => (
+                          <option key={blk} value={blk}>{blk}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 4. Panchayat */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">Panchayat</label>
+                      <select
+                        value={userShgPanchayat}
+                        onChange={(e) => {
+                          setUserShgPanchayat(e.target.value);
+                          setUserShgVillage('');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All Panchayats ({userShgPanchayats.length})</option>
+                        {userShgPanchayats.map((pan) => (
+                          <option key={pan} value={pan}>{pan}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 5. Village */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">Village</label>
+                      <select
+                        value={userShgVillage}
+                        onChange={(e) => setUserShgVillage(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All Villages ({userShgVillages.length})</option>
+                        {userShgVillages.map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Multi-Select SHG List */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-300 font-medium">
+                        SHGs in Filtered Area ({userFilteredShgs.length})
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newIds = userFilteredShgs.map((g) => g.id);
+                            const merged = Array.from(new Set([...newUserForm.assignedGroupIds, ...newIds]));
+                            setNewUserForm({ ...newUserForm, assignedGroupIds: merged });
+                          }}
+                          className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
+                        >
+                          + Select All Filtered ({userFilteredShgs.length})
+                        </button>
+                        <span className="text-slate-600">|</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filteredSet = new Set(userFilteredShgs.map((g) => g.id));
+                            setNewUserForm({
+                              ...newUserForm,
+                              assignedGroupIds: newUserForm.assignedGroupIds.filter((id) => !filteredSet.has(id)),
+                            });
+                          }}
+                          className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
+                        >
+                          Deselect Filtered
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/90 divide-y divide-slate-800/60 p-1">
+                      {userFilteredShgs.length === 0 ? (
+                        <div className="p-4 text-center text-slate-500 text-xs">
+                          No SHGs match the selected location filters. Adjust dropdowns above.
+                        </div>
+                      ) : (
+                        userFilteredShgs.map((g) => {
+                          const isAssigned = newUserForm.assignedGroupIds.includes(g.id);
+                          return (
+                            <label
+                              key={g.id}
+                              className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition ${
+                                isAssigned ? 'bg-emerald-500/10' : 'hover:bg-slate-800/50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <input
+                                  type="checkbox"
+                                  checked={isAssigned}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewUserForm({
+                                        ...newUserForm,
+                                        assignedGroupIds: [...newUserForm.assignedGroupIds, g.id],
+                                      });
+                                    } else {
+                                      setNewUserForm({
+                                        ...newUserForm,
+                                        assignedGroupIds: newUserForm.assignedGroupIds.filter((id) => id !== g.id),
+                                      });
+                                    }
+                                  }}
+                                  className="rounded bg-slate-800 border-slate-700 text-emerald-500 focus:ring-emerald-500"
+                                />
+                                <div>
+                                  <span className="font-semibold text-slate-100">{g.name}</span>
+                                  <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                    <span>{g.village || g.panchayat || 'Village'}</span>
+                                    <span>•</span>
+                                    <span>{g.block}</span>
+                                    <span>•</span>
+                                    <span>{g.district}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <span className="text-[10px] font-mono text-slate-400">
+                                {g.memberCount || 0} members
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Summary of Currently Assigned SHGs */}
+                  {newUserForm.assignedGroupIds.length > 0 ? (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="text-[11px] text-slate-400 font-medium">
+                        Currently Assigned SHGs ({newUserForm.assignedGroupIds.length}):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 rounded-xl bg-slate-900 border border-slate-800">
+                        {newUserForm.assignedGroupIds.map((id) => {
+                          const grp = shgs.find((g) => g.id === id);
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 text-[11px]"
+                            >
+                              {grp?.name || id}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setNewUserForm({
+                                    ...newUserForm,
+                                    assignedGroupIds: newUserForm.assignedGroupIds.filter((gid) => gid !== id),
+                                  })
+                                }
+                                className="hover:text-rose-400 ml-0.5"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                      ⚠️ Please check one or more SHGs from the list above to assign to this Development Officer.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SHG Role: Single Target SHG for Field PWA Recording */}
+              {newUserForm.role === 'shg' && (
+                <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3.5">
+                  <div className="border-b border-slate-800/80 pb-2.5">
+                    <div className="font-semibold text-indigo-400 flex items-center gap-1.5 text-xs">
+                      <Smartphone className="w-4 h-4 text-indigo-400" />
+                      Field App Recording User (PWA)
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      This user logs in to the mobile Progressive Web App (PWA) to record weekly meetings, attendance, savings, and loan transactions for the specified SHG.
+                    </p>
+                  </div>
+
+                  {/* Cascading Location Filter Dropdowns */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">State</label>
+                      <select
+                        value={userShgState}
+                        onChange={(e) => {
+                          setUserShgState(e.target.value);
+                          setUserShgDistrict('');
+                          setUserShgBlock('');
+                          setUserShgPanchayat('');
+                          setUserShgVillage('');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All States ({userShgStates.length})</option>
+                        {userShgStates.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">District</label>
+                      <select
+                        value={userShgDistrict}
+                        onChange={(e) => {
+                          setUserShgDistrict(e.target.value);
+                          setUserShgBlock('');
+                          setUserShgPanchayat('');
+                          setUserShgVillage('');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All Districts ({userShgDistricts.length})</option>
+                        {userShgDistricts.map((dst) => (
+                          <option key={dst} value={dst}>{dst}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">Block</label>
+                      <select
+                        value={userShgBlock}
+                        onChange={(e) => {
+                          setUserShgBlock(e.target.value);
+                          setUserShgPanchayat('');
+                          setUserShgVillage('');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All Blocks ({userShgBlocks.length})</option>
+                        {userShgBlocks.map((blk) => (
+                          <option key={blk} value={blk}>{blk}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">Panchayat</label>
+                      <select
+                        value={userShgPanchayat}
+                        onChange={(e) => {
+                          setUserShgPanchayat(e.target.value);
+                          setUserShgVillage('');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All Panchayats ({userShgPanchayats.length})</option>
+                        {userShgPanchayats.map((pan) => (
+                          <option key={pan} value={pan}>{pan}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 text-[10px] font-medium mb-1">Village</label>
+                      <select
+                        value={userShgVillage}
+                        onChange={(e) => setUserShgVillage(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">All Villages ({userShgVillages.length})</option>
+                        {userShgVillages.map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Target SHG Select */}
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">
+                      Choose Specified SHG *
+                    </label>
+                    <select
+                      required
+                      value={newUserForm.groupId}
+                      onChange={(e) =>
+                        setNewUserForm({
+                          ...newUserForm,
+                          groupId: e.target.value,
+                          assignedGroupIds: e.target.value ? [e.target.value] : [],
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-indigo-500/50 text-slate-100 text-xs font-semibold focus:outline-none focus:border-indigo-400"
+                    >
+                      <option value="">-- Choose SHG from filtered area ({userFilteredShgs.length} available) --</option>
+                      {userFilteredShgs.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name} — {g.village || g.panchayat}, {g.block}, {g.district} ({g.memberCount || 0} members)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowCreateUserModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition"
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/25 transition"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/25 transition cursor-pointer"
                 >
                   Create User
                 </button>

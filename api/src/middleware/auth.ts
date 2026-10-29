@@ -42,7 +42,13 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
 
 /** Blocks viewers from recording deposits / loans / repayments. */
 export const requireOperator = createMiddleware<AppEnv>(async (c, next) => {
-  if (c.var.auth.role !== 'operator' && c.var.auth.role !== 'admin' && c.var.auth.role !== 'super_admin') {
+  if (
+    c.var.auth.role !== 'operator' &&
+    c.var.auth.role !== 'shg' &&
+    c.var.auth.role !== 'do' &&
+    c.var.auth.role !== 'admin' &&
+    c.var.auth.role !== 'super_admin'
+  ) {
     throw forbidden('This account is read-only', 'READ_ONLY_ACCOUNT');
   }
   await next();

@@ -236,7 +236,7 @@ export const SettingsPage: React.FC = () => {
                 Role-Based Access Control (RBAC) Matrix
               </h2>
               <p className="text-xs text-slate-400 mt-1">
-                Defines explicit permissions for Super Admins, Regional Admins, Field Operators, and Viewers.
+                Defines explicit permissions for Administrators, Development Officers (DO), SHG Field Users, and Viewers.
               </p>
             </div>
 
@@ -255,28 +255,28 @@ export const SettingsPage: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-slate-300">
                   <tr className="hover:bg-slate-800/30">
-                    <td className="p-3.5 font-semibold text-rose-300">Super Administrator</td>
-                    <td className="p-3.5 text-slate-400">Full control over all SHGs, settings, master data, and approvals</td>
+                    <td className="p-3.5 font-semibold text-amber-300">Administrator (admin)</td>
+                    <td className="p-3.5 text-slate-400">Full control over all SHGs, settings, master data, user provisioning, and approvals</td>
                     <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓</span></td>
                     <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓</span></td>
                     <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓</span></td>
-                    <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓</span></td>
-                    <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓</span></td>
-                  </tr>
-
-                  <tr className="hover:bg-slate-800/30">
-                    <td className="p-3.5 font-semibold text-amber-300">Regional Admin</td>
-                    <td className="p-3.5 text-slate-400">Oversees district/block SHGs, approves weekly loans & savings</td>
-                    <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓</span></td>
-                    <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
-                    <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
                     <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
                     <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓</span></td>
                   </tr>
 
                   <tr className="hover:bg-slate-800/30">
-                    <td className="p-3.5 font-semibold text-indigo-300">Field Operator</td>
-                    <td className="p-3.5 text-slate-400">PWA field app operator recording deposits, loans, repayments at meetings</td>
+                    <td className="p-3.5 font-semibold text-sky-300">Development Officer (do)</td>
+                    <td className="p-3.5 text-slate-400">Oversees and supervises multiple assigned SHGs across state, district, or block hierarchy</td>
+                    <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓</span></td>
+                    <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
+                    <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
+                    <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
+                    <td className="p-3.5 text-center"><span className="text-emerald-400 font-bold">✓ (Assigned SHGs)</span></td>
+                  </tr>
+
+                  <tr className="hover:bg-slate-800/30">
+                    <td className="p-3.5 font-semibold text-emerald-300">SHG User (shg)</td>
+                    <td className="p-3.5 text-slate-400">Field app recording user who has access to the PWA for the specified SHG (deposits, loans, repayments)</td>
                     <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
                     <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
                     <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
@@ -285,8 +285,8 @@ export const SettingsPage: React.FC = () => {
                   </tr>
 
                   <tr className="hover:bg-slate-800/30">
-                    <td className="p-3.5 font-semibold text-slate-300">Auditor / Viewer</td>
-                    <td className="p-3.5 text-slate-400">Read-only transparency passbook and audit reports access</td>
+                    <td className="p-3.5 font-semibold text-slate-300">Auditor / Viewer (viewer)</td>
+                    <td className="p-3.5 text-slate-400">Read-only transparency passbook and audit reports access across the system</td>
                     <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
                     <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>
                     <td className="p-3.5 text-center"><span className="text-rose-500">✕</span></td>

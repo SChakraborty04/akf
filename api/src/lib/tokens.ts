@@ -6,14 +6,14 @@ export const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 export type AccessTokenPayload = {
   sub: string; // user id
   gid: string | null; // group id (null for global admin)
-  role: 'super_admin' | 'admin' | 'operator' | 'viewer';
+  role: 'super_admin' | 'admin' | 'operator' | 'viewer' | 'do' | 'shg';
   iat: number;
   exp: number;
 };
 
 export async function signAccessToken(
   secret: string,
-  claims: { userId: string; groupId: string | null; role: 'super_admin' | 'admin' | 'operator' | 'viewer' },
+  claims: { userId: string; groupId: string | null; role: 'super_admin' | 'admin' | 'operator' | 'viewer' | 'do' | 'shg' },
   now = Math.floor(Date.now() / 1000),
 ): Promise<string> {
   const payload: AccessTokenPayload = {

@@ -57,10 +57,14 @@ export const Header: React.FC<HeaderProps> = ({
       .toUpperCase() || 'SA';
 
   const roleLabel =
-    currentUser?.role === 'super_admin'
-      ? 'Super Administrator'
-      : currentUser?.role === 'admin'
-      ? 'Regional Administrator'
+    currentUser?.role === 'admin' || currentUser?.role === 'super_admin'
+      ? 'Administrator'
+      : currentUser?.role === 'do'
+      ? 'DO (Development Officer)'
+      : currentUser?.role === 'shg' || currentUser?.role === 'operator'
+      ? 'SHG User'
+      : currentUser?.role === 'viewer'
+      ? 'Auditor / Viewer'
       : currentUser?.role || 'Administrator';
 
   return (

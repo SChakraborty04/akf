@@ -144,10 +144,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="text-[11px] text-emerald-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
               <span>
-                {currentUser?.role === 'super_admin'
-                  ? 'Super Admin Control'
-                  : currentUser?.role === 'admin'
-                  ? 'Regional Admin'
+                {currentUser?.role === 'admin' || currentUser?.role === 'super_admin'
+                  ? 'Administrator'
+                  : currentUser?.role === 'do'
+                  ? 'DO (Dev Officer)'
+                  : currentUser?.role === 'shg' || currentUser?.role === 'operator'
+                  ? 'SHG User'
+                  : currentUser?.role === 'viewer'
+                  ? 'Auditor / Viewer'
                   : 'MIS Session Active'}
               </span>
             </div>

@@ -38,8 +38,8 @@ import {
 /* Enums                                                                      */
 /* -------------------------------------------------------------------------- */
 
-/** super_admin = global access, admin = regional coordinator, operator = SHG operator, viewer = read-only. */
-export const userRole = pgEnum('user_role', ['super_admin', 'admin', 'operator', 'viewer']);
+/** super_admin = global access, admin = regional coordinator, do = development officer, shg = field app recording user, operator = legacy field operator, viewer = read-only. */
+export const userRole = pgEnum('user_role', ['super_admin', 'admin', 'operator', 'viewer', 'do', 'shg']);
 export const languageCode = pgEnum('language_code', ['en', 'hi']);
 export const loanStatus = pgEnum('loan_status', ['active', 'paid']);
 export const ledgerType = pgEnum('ledger_type', ['deposit', 'loan', 'repayment']);
@@ -128,13 +128,16 @@ export const cycles = pgTable(
 
 /**
  * Login accounts. Groups have operator logins; super_admins/admins can have
- * `groupId = null` for cross-group MIS administration.
+ * `groupId = null` for cross-group MIS administration; DOs can have multiple
+ * assigned SHGs via `assignedGroupIds`.
  */
 export const users = pgTable(
   'users',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     groupId: uuid('group_id').references(() => groups.id, { onDelete: 'cascade' }),
+    /** Assigned SHG group IDs for DO (Development Officer) with multi-group access. */
+    assignedGroupIds: text('assigned_group_ids').array(),
     /** Always stored lower-case & trimmed; globally unique. */
     username: text('username').notNull(),
     passwordHash: text('password_hash').notNull(),
