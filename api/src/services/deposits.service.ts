@@ -35,7 +35,7 @@ function where(groupId: string, f: DepositFilters): SQL {
 }
 
 async function loadItems(db: Db, depositIds: string[]) {
-  const map = new Map<string, { memberId: string; memberName: string; hhNo: string; stamps: number; amount: number }[]>();
+  const map = new Map<string, { memberId: string; memberName: string; hhNo: string; stamps: number; amount: number; approvalStatus: string }[]>();
   if (depositIds.length === 0) return map;
   const rows = await db
     .select({
@@ -45,6 +45,7 @@ async function loadItems(db: Db, depositIds: string[]) {
       hhNo: members.hhNo,
       stamps: depositItems.stamps,
       amount: depositItems.amount,
+      approvalStatus: depositItems.approvalStatus,
     })
     .from(depositItems)
     .innerJoin(members, eq(members.id, depositItems.memberId))
@@ -194,6 +195,7 @@ export async function createDeposit(tx: Db, ctx: WriteCtx, input: CreateDepositI
       memberId: i.memberId,
       stamps: i.stamps,
       amount: i.stamps * group.stampValue,
+      approvalStatus: group.approvalRequired ? ('pending' as const) : ('approved' as const),
     })),
   );
 

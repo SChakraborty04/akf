@@ -6,6 +6,7 @@ import type {
   MISUser,
   SHGGroup,
   SHGTransactionsGroup,
+  SHGWeeklyFinanceResponse,
   SystemSettingsData,
 } from '../types';
 
@@ -522,6 +523,48 @@ class ApiClient {
     return this.request(`/finance/transactions/${type}/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
+    });
+  }
+
+  // SHG Weekly Finance & Member Approvals
+  async getShgWeeklyFinance(groupId: string): Promise<SHGWeeklyFinanceResponse> {
+    return this.request(`/finance/weekly/${groupId}`);
+  }
+
+  async approveMemberWeekly(
+    groupId: string,
+    weekDate: string,
+    memberId: string,
+    action: 'approve' | 'reject' = 'approve',
+  ) {
+    return this.request('/finance/approve-member', {
+      method: 'POST',
+      body: JSON.stringify({ groupId, weekDate, memberId, action }),
+    });
+  }
+
+  async approveWeekAll(groupId: string, weekDate: string, action: 'approve' | 'reject' = 'approve') {
+    return this.request('/finance/approve-week', {
+      method: 'POST',
+      body: JSON.stringify({ groupId, weekDate, action }),
+    });
+  }
+
+  async editMemberWeekly(
+    groupId: string,
+    weekDate: string,
+    memberId: string,
+    patch: {
+      stamps?: number;
+      depositAmount?: number;
+      loanDisbursed?: number;
+      repayment?: number;
+      autoApprove?: boolean;
+    },
+  ) {
+    return this.request('/finance/edit-member-weekly', {
+      method: 'PATCH',
+      body: JSON.stringify({ groupId, weekDate, memberId, ...patch }),
     });
   }
 

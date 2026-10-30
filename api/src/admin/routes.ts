@@ -15,7 +15,16 @@ import {
   listLocations,
   updateAdminGroup,
 } from './services/shg.service';
-import { approveTransaction, editPendingTransaction, getAdminLedger, listAdminTransactions } from './services/finance.service';
+import {
+  approveMemberWeekly,
+  approveTransaction,
+  approveWeekAll,
+  editMemberWeekly,
+  editPendingTransaction,
+  getAdminLedger,
+  getShgWeeklyFinance,
+  listAdminTransactions,
+} from './services/finance.service';
 import {
   createAdminLocation,
   deleteAdminLocation,
@@ -194,6 +203,14 @@ adminRoutes.get('/locations', async (c) => {
  */
 adminRoutes.get('/groups', async (c) => {
   const { state, district, block, panchayat, search, isActive } = c.req.query();
+  const auth = c.var.auth;
+  let accessibleGroupIds: string[] | undefined = undefined;
+  if (auth.role === 'shg' || auth.role === 'operator') {
+    accessibleGroupIds = auth.groupId ? [auth.groupId] : [];
+  } else if (auth.role === 'do' && auth.assignedGroupIds && auth.assignedGroupIds.length > 0) {
+    accessibleGroupIds = auth.assignedGroupIds;
+  }
+
   const list = await listAdminGroups(c.var.db, {
     state,
     district,
@@ -201,6 +218,7 @@ adminRoutes.get('/groups', async (c) => {
     panchayat,
     search,
     isActive: isActive !== undefined ? isActive === 'true' : undefined,
+    accessibleGroupIds,
   });
   return ok(c, list);
 });
@@ -339,6 +357,14 @@ adminRoutes.delete('/master/locations/:id', async (c) => {
  */
 adminRoutes.get('/finance/transactions', async (c) => {
   const { state, district, block, panchayat, fromDate, toDate, status } = c.req.query();
+  const auth = c.var.auth;
+  let accessibleGroupIds: string[] | undefined = undefined;
+  if (auth.role === 'shg' || auth.role === 'operator') {
+    accessibleGroupIds = auth.groupId ? [auth.groupId] : [];
+  } else if (auth.role === 'do' && auth.assignedGroupIds && auth.assignedGroupIds.length > 0) {
+    accessibleGroupIds = auth.assignedGroupIds;
+  }
+
   const data = await listAdminTransactions(c.var.db, {
     state,
     district,
@@ -347,8 +373,92 @@ adminRoutes.get('/finance/transactions', async (c) => {
     fromDate,
     toDate,
     status: (status as any) || 'all',
+    accessibleGroupIds,
   });
   return ok(c, data);
+});
+
+/**
+ * Returns complete weekly financial ledger & member details for a specific SHG
+ */
+adminRoutes.get('/finance/weekly/:groupId', async (c) => {
+  const groupId = c.req.param('groupId');
+  const auth = c.var.auth;
+  if (auth.role === 'shg' || auth.role === 'operator') {
+    if (auth.groupId && auth.groupId !== groupId) {
+      throw unprocessable('Access to this SHG is restricted', 'FORBIDDEN_SHG');
+    }
+  } else if (auth.role === 'do' && auth.assignedGroupIds && auth.assignedGroupIds.length > 0) {
+    if (!auth.assignedGroupIds.includes(groupId)) {
+      throw unprocessable('Access to this SHG is restricted for your role', 'FORBIDDEN_SHG');
+    }
+  }
+
+  const data = await getShgWeeklyFinance(c.var.db, groupId);
+  return ok(c, data);
+});
+
+/**
+ * Approve or Reject an individual member's record in a specific week
+ */
+adminRoutes.post('/finance/approve-member', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || !body.groupId || !body.weekDate || !body.memberId || !body.action) {
+    throw unprocessable('groupId, weekDate, memberId, and action (approve|reject) are required', 'MISSING_FIELDS');
+  }
+
+  const result = await c.var.tx((tx) =>
+    approveMemberWeekly(tx, c.var.auth.userId, {
+      groupId: body.groupId,
+      weekDate: body.weekDate,
+      memberId: body.memberId,
+      action: body.action,
+    }),
+  );
+  return ok(c, result);
+});
+
+/**
+ * Approve or Reject all member records for an entire week in an SHG
+ */
+adminRoutes.post('/finance/approve-week', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || !body.groupId || !body.weekDate || !body.action) {
+    throw unprocessable('groupId, weekDate, and action (approve|reject) are required', 'MISSING_FIELDS');
+  }
+
+  const result = await c.var.tx((tx) =>
+    approveWeekAll(tx, c.var.auth.userId, {
+      groupId: body.groupId,
+      weekDate: body.weekDate,
+      action: body.action,
+    }),
+  );
+  return ok(c, result);
+});
+
+/**
+ * Edit an individual member's weekly figures (deposit stamps, loan, repayment)
+ */
+adminRoutes.patch('/finance/edit-member-weekly', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || !body.groupId || !body.weekDate || !body.memberId) {
+    throw unprocessable('groupId, weekDate, and memberId are required', 'MISSING_FIELDS');
+  }
+
+  const result = await c.var.tx((tx) =>
+    editMemberWeekly(tx, c.var.auth.userId, {
+      groupId: body.groupId,
+      weekDate: body.weekDate,
+      memberId: body.memberId,
+      stamps: body.stamps,
+      depositAmount: body.depositAmount,
+      loanDisbursed: body.loanDisbursed,
+      repayment: body.repayment,
+      autoApprove: body.autoApprove,
+    }),
+  );
+  return ok(c, result);
 });
 
 /**

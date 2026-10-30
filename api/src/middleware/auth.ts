@@ -36,6 +36,7 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
     username: user.username,
     fullName: user.fullName,
     language: user.language,
+    assignedGroupIds: user.assignedGroupIds ?? null,
   });
   await next();
 });

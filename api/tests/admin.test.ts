@@ -424,5 +424,98 @@ describe('Admin MIS API Routes', () => {
     });
     expect(delRes.status).toBe(200);
   });
+
+  test('Finance Weekly Ledger: lists weekly payment details, allows member-level edit and approval (x++)', async () => {
+    const { request, token, base } = await createTestApp();
+    const opToken = await token();
+
+    const loginRes = await request('/admin/auth/login', {
+      method: 'POST',
+      json: { username: 'admin', password: PASSWORD },
+    });
+    const adminToken = loginRes.json.data.accessToken;
+
+    const membersRes = await request('/v1/members', { token: opToken });
+    const m1 = membersRes.json.data[0];
+    const m2 = membersRes.json.data[1];
+
+    // Record meeting savings
+    const depositRes = await request('/v1/deposits', {
+      method: 'POST',
+      token: opToken,
+      json: {
+        date: '2026-04-03',
+        items: [
+          { memberId: m1.id, stamps: 5 },
+          { memberId: m2.id, stamps: 5 },
+        ],
+      },
+    });
+    expect(depositRes.status).toBe(201);
+
+    // 1. Fetch weekly ledger for this SHG
+    const weeklyRes = await request(`/admin/finance/weekly/${base.groupId}`, {
+      token: adminToken,
+    });
+    expect(weeklyRes.status).toBe(200);
+    expect(weeklyRes.json.data.shg.name).toBe('Lakshi Group');
+    expect(weeklyRes.json.data.weeks.length).toBeGreaterThanOrEqual(1);
+
+    const week1 = weeklyRes.json.data.weeks[0];
+    expect(week1.weekNo).toBe('001');
+    expect(week1.date).toBe('2026-04-03');
+    expect(week1.displayDate).toBe('03-04-2026');
+    expect(week1.totalDeposit).toBe(500);
+    expect(week1.noOfStamps).toBe(10);
+    expect(week1.boxAmount).toBe(500);
+    expect(week1.members.length).toBe(weeklyRes.json.data.totalMembers);
+
+    // 2. Approve single member -> x++
+    const approveM1 = await request('/admin/finance/approve-member', {
+      method: 'POST',
+      token: adminToken,
+      json: {
+        groupId: base.groupId,
+        weekDate: '2026-04-03',
+        memberId: m1.id,
+        action: 'approve',
+      },
+    });
+    expect(approveM1.status).toBe(200);
+
+    // 3. Edit member weekly figures
+    const editM2 = await request('/admin/finance/edit-member-weekly', {
+      method: 'PATCH',
+      token: adminToken,
+      json: {
+        groupId: base.groupId,
+        weekDate: '2026-04-03',
+        memberId: m2.id,
+        stamps: 6,
+        depositAmount: 300,
+      },
+    });
+    expect(editM2.status).toBe(200);
+
+    // 4. Approve entire week
+    const approveWeekRes = await request('/admin/finance/approve-week', {
+      method: 'POST',
+      token: adminToken,
+      json: {
+        groupId: base.groupId,
+        weekDate: '2026-04-03',
+        action: 'approve',
+      },
+    });
+    expect(approveWeekRes.status).toBe(200);
+
+    // 5. Verify weekly data reflects approval
+    const updatedWeeklyRes = await request(`/admin/finance/weekly/${base.groupId}`, {
+      token: adminToken,
+    });
+    const updatedWeek1 = updatedWeeklyRes.json.data.weeks[0];
+    expect(updatedWeek1.approvalStatus).toBe('approved');
+    expect(updatedWeek1.approvedCount).toBe(updatedWeeklyRes.json.data.totalMembers);
+  });
 });
 

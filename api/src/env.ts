@@ -18,6 +18,7 @@ export type AuthContext = {
   username: string;
   fullName: string;
   language: 'en' | 'hi';
+  assignedGroupIds?: string[] | null;
 };
 
 export type Variables = {

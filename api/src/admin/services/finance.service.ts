@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db/client';
 import {
   depositItems,
@@ -9,6 +9,7 @@ import {
   loanStamps,
   loans,
   members,
+  repayments,
 } from '../../db/schema';
 import { notFound, unprocessable } from '../../lib/errors';
 
@@ -20,6 +21,7 @@ export type TransactionFilters = {
   fromDate?: string;
   toDate?: string;
   status?: 'pending' | 'approved' | 'rejected' | 'all';
+  accessibleGroupIds?: string[];
 };
 
 export type ApproveInput = {
@@ -35,6 +37,15 @@ export type ApproveInput = {
 export async function listAdminTransactions(db: Db, filters: TransactionFilters = {}) {
   // 1. Find matching groups based on location hierarchy
   const groupConds: (SQL | undefined)[] = [eq(groups.isActive, true)];
+  if (filters.accessibleGroupIds) {
+    if (filters.accessibleGroupIds.length === 0) {
+      return {
+        summary: { pendingCount: 0, approvedCount: 0, pendingAmount: 0, approvedAmount: 0 },
+        shgs: [],
+      };
+    }
+    groupConds.push(inArray(groups.id, filters.accessibleGroupIds));
+  }
   if (filters.state) groupConds.push(eq(groups.state, filters.state));
   if (filters.district) groupConds.push(eq(groups.district, filters.district));
   if (filters.block) groupConds.push(eq(groups.block, filters.block));
@@ -414,4 +425,530 @@ export async function getAdminLedger(
     },
     entries: rows,
   };
+}
+
+/**
+ * Helper to format date strings YYYY-MM-DD into DD-MM-YYYY
+ */
+export function formatDisplayDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+}
+
+/**
+ * Returns weekly financial ledger and member breakdown for a specific SHG:
+ * - Weekly overview: Week No (001, 002...), Date (DD-MM-YYYY), Total Deposit, No of Stamps,
+ *   Loan Disbursed, Re-Payment, Box Amount (cumulative cash), Outstanding Amount (cumulative loan balance),
+ *   Approval column (x/12 approved transactions with x++ increment).
+ * - Member-wise breakdown per week:
+ *   Week No, Date, Member Name, Total Deposit, No of Stamps, Loan Disbursed, Re-Payment,
+ *   Balance Amount (member cumulative savings), Outstanding Amount (member loan balance),
+ *   Editable & Approvable status for current/pending week.
+ * - Member history across all weeks.
+ */
+export async function getShgWeeklyFinance(db: Db, groupId: string) {
+  const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+  if (!group) throw notFound('SHG Group');
+
+  const groupMembers = await db
+    .select({
+      id: members.id,
+      name: members.name,
+      hhNo: members.hhNo,
+      husbandName: members.husbandName,
+      mobileNo: members.mobileNo,
+      isActive: members.isActive,
+      joinedOn: members.joinedOn,
+    })
+    .from(members)
+    .where(and(eq(members.groupId, groupId), eq(members.isActive, true)))
+    .orderBy(members.hhNo);
+
+  const totalMembers = groupMembers.length;
+
+  // 1. Query deposits and their member items
+  const depositRows = await db
+    .select()
+    .from(deposits)
+    .where(eq(deposits.groupId, groupId))
+    .orderBy(asc(deposits.date), asc(deposits.createdAt));
+
+  const depIds = depositRows.map((d) => d.id);
+  const itemsByDepositId = new Map<string, { memberId: string; stamps: number; amount: number; approvalStatus: string }[]>();
+  if (depIds.length > 0) {
+    const dItems = await db
+      .select({
+        id: depositItems.id,
+        depositId: depositItems.depositId,
+        memberId: depositItems.memberId,
+        stamps: depositItems.stamps,
+        amount: depositItems.amount,
+        approvalStatus: depositItems.approvalStatus,
+      })
+      .from(depositItems)
+      .where(inArray(depositItems.depositId, depIds));
+
+    for (const it of dItems) {
+      const list = itemsByDepositId.get(it.depositId) ?? [];
+      list.push(it);
+      itemsByDepositId.set(it.depositId, list);
+    }
+  }
+
+  // 2. Query loans
+  const loanRows = await db
+    .select({
+      id: loans.id,
+      memberId: loans.memberId,
+      date: loans.date,
+      loanNo: loans.loanNo,
+      principalAmount: loans.principalAmount,
+      monthlyInterestRate: loans.monthlyInterestRate,
+      status: loans.status,
+      approvalStatus: loans.approvalStatus,
+      approvedAt: loans.approvedAt,
+    })
+    .from(loans)
+    .where(eq(loans.groupId, groupId))
+    .orderBy(asc(loans.date), asc(loans.createdAt));
+
+  // 3. Query repayments
+  const repaymentRows = await db
+    .select({
+      id: repayments.id,
+      loanId: repayments.loanId,
+      memberId: repayments.memberId,
+      date: repayments.date,
+      amountPaid: repayments.amountPaid,
+      interestDeducted: repayments.interestDeducted,
+      principalDeducted: repayments.principalDeducted,
+      approvalStatus: repayments.approvalStatus,
+      approvedAt: repayments.approvedAt,
+    })
+    .from(repayments)
+    .where(eq(repayments.groupId, groupId))
+    .orderBy(asc(repayments.date), asc(repayments.createdAt));
+
+  // 4. Gather chronological meeting dates
+  const dateSet = new Set<string>();
+  depositRows.forEach((d) => dateSet.add(d.date));
+  loanRows.forEach((l) => dateSet.add(l.date));
+  repaymentRows.forEach((r) => dateSet.add(r.date));
+  const sortedDates = Array.from(dateSet).sort();
+
+  // Maps for fast lookup by date
+  const depositsByDate = new Map<string, typeof depositRows[0]>();
+  depositRows.forEach((d) => depositsByDate.set(d.date, d));
+
+  const loansByDateAndMember = new Map<string, typeof loanRows>();
+  loanRows.forEach((l) => {
+    const key = `${l.date}__${l.memberId}`;
+    const list = loansByDateAndMember.get(key) ?? [];
+    list.push(l);
+    loansByDateAndMember.set(key, list);
+  });
+
+  const repaymentsByDateAndMember = new Map<string, typeof repaymentRows>();
+  repaymentRows.forEach((r) => {
+    const key = `${r.date}__${r.memberId}`;
+    const list = repaymentsByDateAndMember.get(key) ?? [];
+    list.push(r);
+    repaymentsByDateAndMember.set(key, list);
+  });
+
+  // 5. Cumulative state tracking
+  let runningBoxAmount = 0;
+  let runningOutstandingLoan = 0;
+  const memberSavingsBalance = new Map<string, number>();
+  const memberLoanBalance = new Map<string, number>();
+  const memberHistories: Record<string, any[]> = {};
+  groupMembers.forEach((m) => {
+    memberSavingsBalance.set(m.id, 0);
+    memberLoanBalance.set(m.id, 0);
+    memberHistories[m.id] = [];
+  });
+
+  const weeks = sortedDates.map((dateStr, idx) => {
+    const weekNo = String(idx + 1).padStart(3, '0');
+    const displayDate = formatDisplayDate(dateStr);
+    const dep = depositsByDate.get(dateStr);
+    const depItems = dep ? itemsByDepositId.get(dep.id) ?? [] : [];
+    const itemByMemberId = new Map(depItems.map((it) => [it.memberId, it]));
+
+    let weekTotalDeposit = 0;
+    let weekTotalStamps = 0;
+    let weekLoanDisbursed = 0;
+    let weekRepayment = 0;
+    let weekPrincipalRepaid = 0;
+    let weekApprovedMembers = 0;
+
+    const memberDetails = groupMembers.map((m) => {
+      const it = itemByMemberId.get(m.id);
+      const memberStamps = it ? it.stamps : 0;
+      const memberDeposit = it ? it.amount : memberStamps * group.stampValue;
+
+      const mLoans = loansByDateAndMember.get(`${dateStr}__${m.id}`) ?? [];
+      const mLoanDisbursed = mLoans.reduce((sum, l) => sum + l.principalAmount, 0);
+
+      const mRepayments = repaymentsByDateAndMember.get(`${dateStr}__${m.id}`) ?? [];
+      const mRepayment = mRepayments.reduce((sum, r) => sum + r.amountPaid, 0);
+      const mPrincipalRepaid = mRepayments.reduce((sum, r) => sum + r.principalDeducted, 0);
+
+      // Running cumulative per member
+      const prevSavings = memberSavingsBalance.get(m.id) ?? 0;
+      const newSavings = prevSavings + memberDeposit;
+      memberSavingsBalance.set(m.id, newSavings);
+
+      const prevLoan = memberLoanBalance.get(m.id) ?? 0;
+      const newLoan = Math.max(0, prevLoan + mLoanDisbursed - mPrincipalRepaid);
+      memberLoanBalance.set(m.id, newLoan);
+
+      // Determine approval status for this member's week
+      let isMemberApproved = true;
+      if (dep) {
+        if (dep.approvalStatus === 'pending') {
+          if (it?.approvalStatus === 'approved') {
+            isMemberApproved = true;
+          } else {
+            isMemberApproved = false;
+          }
+        } else if (dep.approvalStatus === 'rejected') {
+          isMemberApproved = false;
+        }
+      }
+      if (mLoans.some((l) => l.approvalStatus === 'pending')) isMemberApproved = false;
+      if (mRepayments.some((r) => r.approvalStatus === 'pending')) isMemberApproved = false;
+
+      if (isMemberApproved) {
+        weekApprovedMembers += 1;
+      }
+
+      weekTotalDeposit += memberDeposit;
+      weekTotalStamps += memberStamps;
+      weekLoanDisbursed += mLoanDisbursed;
+      weekRepayment += mRepayment;
+      weekPrincipalRepaid += mPrincipalRepaid;
+
+      const memberRecord = {
+        weekNo,
+        date: dateStr,
+        displayDate,
+        memberId: m.id,
+        memberName: m.name,
+        hhNo: m.hhNo,
+        totalDeposit: memberDeposit,
+        noOfStamps: memberStamps,
+        loanDisbursed: mLoanDisbursed,
+        repayment: mRepayment,
+        balanceAmount: newSavings,
+        outstandingAmount: newLoan,
+        approvalStatus: isMemberApproved ? ('approved' as const) : ('pending' as const),
+        depositId: dep?.id || null,
+        depositItemId: (it as any)?.id || null,
+        loanIds: mLoans.map((l) => l.id),
+        repaymentIds: mRepayments.map((r) => r.id),
+      };
+
+      memberHistories[m.id].push({
+        weekNo,
+        date: dateStr,
+        displayDate,
+        totalDeposit: memberDeposit,
+        noOfStamps: memberStamps,
+        loanDisbursed: mLoanDisbursed,
+        repayment: mRepayment,
+        balanceAmount: newSavings,
+        outstandingAmount: newLoan,
+        approvalStatus: isMemberApproved ? 'approved' : 'pending',
+      });
+
+      return memberRecord;
+    });
+
+    runningBoxAmount += weekTotalDeposit + weekRepayment - weekLoanDisbursed;
+    runningOutstandingLoan = Math.max(0, runningOutstandingLoan + weekLoanDisbursed - weekPrincipalRepaid);
+
+    const isCurrentWeek = idx === sortedDates.length - 1;
+    const isWeekFullyApproved = totalMembers > 0 && weekApprovedMembers === totalMembers;
+
+    return {
+      weekNo,
+      weekIndex: idx + 1,
+      date: dateStr,
+      displayDate,
+      totalDeposit: weekTotalDeposit,
+      noOfStamps: weekTotalStamps,
+      loanDisbursed: weekLoanDisbursed,
+      repayment: weekRepayment,
+      boxAmount: runningBoxAmount,
+      outstandingAmount: runningOutstandingLoan,
+      approvedCount: weekApprovedMembers,
+      totalCount: totalMembers,
+      approvalRatio: `${weekApprovedMembers}/${totalMembers}`,
+      approvalStatus: isWeekFullyApproved ? ('approved' as const) : ('pending' as const),
+      isCurrentWeek,
+      depositId: dep?.id || null,
+      members: memberDetails,
+    };
+  });
+
+  return {
+    shg: {
+      id: group.id,
+      name: group.name,
+      hindiName: group.hindiName,
+      state: group.state,
+      district: group.district,
+      block: group.block,
+      panchayat: group.panchayat,
+      village: group.village,
+      stampValue: group.stampValue,
+      meetingDay: group.meetingDay,
+      maxStampsPerMember: group.maxStampsPerMember,
+      maxLoanAmount: group.maxLoanAmount,
+      approvalRequired: group.approvalRequired,
+    },
+    totalMembers,
+    currentBoxAmount: runningBoxAmount,
+    currentOutstandingAmount: runningOutstandingLoan,
+    weeks,
+    memberHistories,
+  };
+}
+
+/**
+ * Approve or Reject an individual member's record in a specific week.
+ */
+export async function approveMemberWeekly(
+  tx: Db,
+  adminUserId: string,
+  input: { groupId: string; weekDate: string; memberId: string; action: 'approve' | 'reject' },
+) {
+  const newStatus = input.action === 'approve' ? ('approved' as const) : ('rejected' as const);
+  const now = new Date();
+
+  // 1. If deposit exists on that week, update the member's depositItem
+  const [dep] = await tx
+    .select()
+    .from(deposits)
+    .where(and(eq(deposits.groupId, input.groupId), eq(deposits.date, input.weekDate)))
+    .limit(1);
+
+  if (dep) {
+    await tx
+      .update(depositItems)
+      .set({
+        approvalStatus: newStatus,
+        approvedBy: adminUserId,
+        approvedAt: now,
+      })
+      .where(and(eq(depositItems.depositId, dep.id), eq(depositItems.memberId, input.memberId)));
+
+    // Check if all items for this deposit are now approved
+    const allItems = await tx.select().from(depositItems).where(eq(depositItems.depositId, dep.id));
+    const allApproved = allItems.length > 0 && allItems.every((it) => it.approvalStatus === 'approved');
+    if (allApproved) {
+      await tx
+        .update(deposits)
+        .set({ approvalStatus: 'approved', approvedBy: adminUserId, approvedAt: now })
+        .where(eq(deposits.id, dep.id));
+    }
+  }
+
+  // 2. Loans for this member on that week
+  await tx
+    .update(loans)
+    .set({ approvalStatus: newStatus, approvedBy: adminUserId, approvedAt: now })
+    .where(and(eq(loans.groupId, input.groupId), eq(loans.memberId, input.memberId), eq(loans.date, input.weekDate)));
+
+  // 3. Repayments for this member on that week
+  await tx
+    .update(repayments)
+    .set({ approvalStatus: newStatus, approvedBy: adminUserId, approvedAt: now })
+    .where(
+      and(
+        eq(repayments.groupId, input.groupId),
+        eq(repayments.memberId, input.memberId),
+        eq(repayments.date, input.weekDate),
+      ),
+    );
+
+  return { ok: true, groupId: input.groupId, weekDate: input.weekDate, memberId: input.memberId, status: newStatus };
+}
+
+/**
+ * Approves all transactions for all members in a given week.
+ */
+export async function approveWeekAll(
+  tx: Db,
+  adminUserId: string,
+  input: { groupId: string; weekDate: string; action: 'approve' | 'reject' },
+) {
+  const newStatus = input.action === 'approve' ? ('approved' as const) : ('rejected' as const);
+  const now = new Date();
+
+  // 1. Deposits & deposit items
+  const deps = await tx
+    .select()
+    .from(deposits)
+    .where(and(eq(deposits.groupId, input.groupId), eq(deposits.date, input.weekDate)));
+
+  for (const dep of deps) {
+    await tx
+      .update(deposits)
+      .set({ approvalStatus: newStatus, approvedBy: adminUserId, approvedAt: now })
+      .where(eq(deposits.id, dep.id));
+
+    await tx
+      .update(depositItems)
+      .set({ approvalStatus: newStatus, approvedBy: adminUserId, approvedAt: now })
+      .where(eq(depositItems.depositId, dep.id));
+  }
+
+  // 2. Loans
+  await tx
+    .update(loans)
+    .set({ approvalStatus: newStatus, approvedBy: adminUserId, approvedAt: now })
+    .where(and(eq(loans.groupId, input.groupId), eq(loans.date, input.weekDate)));
+
+  // 3. Repayments
+  await tx
+    .update(repayments)
+    .set({ approvalStatus: newStatus, approvedBy: adminUserId, approvedAt: now })
+    .where(and(eq(repayments.groupId, input.groupId), eq(repayments.date, input.weekDate)));
+
+  return { ok: true, groupId: input.groupId, weekDate: input.weekDate, status: newStatus };
+}
+
+/**
+ * Edits an individual member's weekly figures (deposit stamps, loan, repayment).
+ */
+export async function editMemberWeekly(
+  tx: Db,
+  adminUserId: string,
+  input: {
+    groupId: string;
+    weekDate: string;
+    memberId: string;
+    stamps?: number;
+    depositAmount?: number;
+    loanDisbursed?: number;
+    repayment?: number;
+    autoApprove?: boolean;
+  },
+) {
+  const [group] = await tx.select().from(groups).where(eq(groups.id, input.groupId)).limit(1);
+  if (!group) throw notFound('SHG Group');
+
+  const now = new Date();
+
+  // 1. Find or create deposit on weekDate
+  const [dep] = await tx
+    .select()
+    .from(deposits)
+    .where(and(eq(deposits.groupId, input.groupId), eq(deposits.date, input.weekDate)))
+    .limit(1);
+
+  if (input.stamps !== undefined) {
+    const stamps = Math.max(0, Number(input.stamps));
+    const amount = input.depositAmount !== undefined ? Number(input.depositAmount) : stamps * group.stampValue;
+
+    if (dep) {
+      const [existingItem] = await tx
+        .select()
+        .from(depositItems)
+        .where(and(eq(depositItems.depositId, dep.id), eq(depositItems.memberId, input.memberId)))
+        .limit(1);
+
+      if (existingItem) {
+        await tx
+          .update(depositItems)
+          .set({
+            stamps,
+            amount,
+            approvalStatus: input.autoApprove ? 'approved' : existingItem.approvalStatus,
+            approvedBy: input.autoApprove ? adminUserId : existingItem.approvedBy,
+            approvedAt: input.autoApprove ? now : existingItem.approvedAt,
+          })
+          .where(eq(depositItems.id, existingItem.id));
+      } else if (stamps > 0) {
+        await tx.insert(depositItems).values({
+          depositId: dep.id,
+          memberId: input.memberId,
+          stamps,
+          amount,
+          approvalStatus: input.autoApprove ? 'approved' : 'pending',
+          approvedBy: input.autoApprove ? adminUserId : null,
+          approvedAt: input.autoApprove ? now : null,
+        });
+      }
+
+      // Recalculate deposit totals
+      const allItems = await tx.select().from(depositItems).where(eq(depositItems.depositId, dep.id));
+      const newTotalStamps = allItems.reduce((sum, it) => sum + it.stamps, 0);
+      const newTotalAmount = allItems.reduce((sum, it) => sum + it.amount, 0);
+      const allApproved = allItems.length > 0 && allItems.every((it) => it.approvalStatus === 'approved');
+
+      await tx
+        .update(deposits)
+        .set({
+          totalStamps: newTotalStamps,
+          totalAmount: newTotalAmount,
+          approvalStatus: allApproved ? 'approved' : dep.approvalStatus,
+        })
+        .where(eq(deposits.id, dep.id));
+    }
+  }
+
+  // 2. If loan amount is provided, update loan
+  if (input.loanDisbursed !== undefined) {
+    const [loan] = await tx
+      .select()
+      .from(loans)
+      .where(and(eq(loans.groupId, input.groupId), eq(loans.memberId, input.memberId), eq(loans.date, input.weekDate)))
+      .limit(1);
+
+    if (loan) {
+      await tx
+        .update(loans)
+        .set({
+          principalAmount: Number(input.loanDisbursed),
+          approvalStatus: input.autoApprove ? 'approved' : loan.approvalStatus,
+          updatedAt: now,
+        })
+        .where(eq(loans.id, loan.id));
+    }
+  }
+
+  // 3. If repayment is provided, update repayment
+  if (input.repayment !== undefined) {
+    const [rep] = await tx
+      .select()
+      .from(repayments)
+      .where(
+        and(
+          eq(repayments.groupId, input.groupId),
+          eq(repayments.memberId, input.memberId),
+          eq(repayments.date, input.weekDate),
+        ),
+      )
+      .limit(1);
+
+    if (rep) {
+      await tx
+        .update(repayments)
+        .set({
+          amountPaid: Number(input.repayment),
+          principalDeducted: Number(input.repayment),
+          approvalStatus: input.autoApprove ? 'approved' : rep.approvalStatus,
+        })
+        .where(eq(repayments.id, rep.id));
+    }
+  }
+
+  return { ok: true, groupId: input.groupId, weekDate: input.weekDate, memberId: input.memberId };
 }

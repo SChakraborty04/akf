@@ -21,6 +21,7 @@ export type ShgFilters = {
   panchayat?: string;
   search?: string;
   isActive?: boolean;
+  accessibleGroupIds?: string[];
 };
 
 export type CreateShgInput = {
@@ -137,6 +138,10 @@ export async function listAdminGroups(db: Db, filters: ShgFilters = {}) {
   if (filters.block) conds.push(eq(groups.block, filters.block));
   if (filters.panchayat) conds.push(eq(groups.panchayat, filters.panchayat));
   if (filters.isActive !== undefined) conds.push(eq(groups.isActive, filters.isActive));
+  if (filters.accessibleGroupIds) {
+    if (filters.accessibleGroupIds.length === 0) return [];
+    conds.push(inArray(groups.id, filters.accessibleGroupIds));
+  }
   if (filters.search) {
     const q = `%${filters.search.trim()}%`;
     conds.push(

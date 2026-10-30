@@ -23,6 +23,7 @@ export type PublicUser = {
   language: 'en' | 'hi';
   groupId: string | null;
   groupName: string | null;
+  assignedGroupIds?: string[] | null;
 };
 
 export type Session = {
@@ -64,6 +65,7 @@ export const toPublicUser = (user: UserRow, groupName: string | null): PublicUse
   language: user.language,
   groupId: user.groupId,
   groupName,
+  assignedGroupIds: user.assignedGroupIds ?? null,
 });
 
 async function issueSession(

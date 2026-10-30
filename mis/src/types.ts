@@ -168,6 +168,68 @@ export interface LedgerEntry {
   createdAt: string;
 }
 
+export interface WeeklyPaymentMemberDetail {
+  memberId: string;
+  memberName: string;
+  hhNo: string;
+  weekNo: string;
+  date: string;
+  displayDate: string;
+  totalDeposit: number;
+  noOfStamps: number;
+  loanDisbursed: number;
+  repayment: number;
+  balanceAmount: number;
+  outstandingAmount: number;
+  approvalStatus: 'approved' | 'pending';
+  depositId: string | null;
+  depositItemId: string | null;
+  loanIds?: string[];
+  repaymentIds?: string[];
+}
+
+export interface WeeklyPaymentRow {
+  weekNo: string;
+  weekIndex: number;
+  date: string;
+  displayDate: string;
+  totalDeposit: number;
+  noOfStamps: number;
+  loanDisbursed: number;
+  repayment: number;
+  boxAmount: number;
+  outstandingAmount: number;
+  approvedCount: number;
+  totalCount: number;
+  approvalRatio: string;
+  approvalStatus: 'approved' | 'pending';
+  isCurrentWeek: boolean;
+  depositId: string | null;
+  members: WeeklyPaymentMemberDetail[];
+}
+
+export interface MemberFinanceHistoryItem {
+  weekNo: string;
+  date: string;
+  displayDate: string;
+  totalDeposit: number;
+  noOfStamps: number;
+  loanDisbursed: number;
+  repayment: number;
+  balanceAmount: number;
+  outstandingAmount: number;
+  approvalStatus: 'approved' | 'pending';
+}
+
+export interface SHGWeeklyFinanceResponse {
+  shg: SHGGroup;
+  totalMembers: number;
+  currentBoxAmount: number;
+  currentOutstandingAmount: number;
+  weeks: WeeklyPaymentRow[];
+  memberHistories: Record<string, MemberFinanceHistoryItem[]>;
+}
+
 export interface MISUser {
   id: string;
   username: string;

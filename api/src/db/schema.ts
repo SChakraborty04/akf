@@ -289,6 +289,9 @@ export const depositItems = pgTable(
       .references(() => members.id, { onDelete: 'restrict' }),
     stamps: integer('stamps').notNull(),
     amount: integer('amount').notNull(),
+    approvalStatus: approvalStatus('approval_status').default('approved').notNull(),
+    approvedBy: uuid('approved_by').references(() => users.id, { onDelete: 'set null' }),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
   },
   (t) => [
     uniqueIndex('deposit_items_deposit_member_uq').on(t.depositId, t.memberId),
