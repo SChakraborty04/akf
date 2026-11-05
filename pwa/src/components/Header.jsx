@@ -14,8 +14,8 @@ export default function Header() {
       <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
         {/* Left: Group Name */}
         <div className="flex items-center space-x-2.5">
-          <div className="bg-emerald-700/80 p-2 rounded-xl border border-emerald-600/50">
-            <Shield className="w-5 h-5 text-emerald-200" />
+          <div className="bg-white p-1 rounded-xl shadow-sm border border-emerald-400/40 w-9 h-9 flex items-center justify-center shrink-0">
+            <img src="/logo-transparent.png" alt="AKF Logo" className="w-6 h-6 object-contain" />
           </div>
           <div>
             <h1 className="font-bold text-base tracking-tight leading-none text-white">

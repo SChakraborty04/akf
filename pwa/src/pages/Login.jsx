@@ -49,8 +49,8 @@ export default function Login() {
       {/* Main Login Box */}
       <div className="my-auto space-y-6">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-800 text-emerald-200 rounded-3xl shadow-xl mb-2 border-2 border-emerald-600">
-            <Shield className="w-9 h-9" />
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl shadow-xl mb-2 border border-emerald-100 p-2.5 ring-4 ring-emerald-500/10">
+            <img src="/logo-transparent.png" alt="AKF Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
             SHG+

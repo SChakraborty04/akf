@@ -22,8 +22,8 @@ export default function Profile() {
       {/* Group Information Card */}
       <div className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-slate-900 rounded-3xl p-5 text-white shadow-lg border border-emerald-700/50 space-y-4">
         <div className="flex items-center space-x-3 border-b border-emerald-700/60 pb-3.5">
-          <div className="bg-emerald-700/80 p-2.5 rounded-2xl border border-emerald-600">
-            <Shield className="w-6 h-6 text-emerald-200" />
+          <div className="bg-white p-1 rounded-2xl shadow-sm border border-emerald-400/40 w-11 h-11 flex items-center justify-center shrink-0">
+            <img src="/logo-transparent.png" alt="AKF Logo" className="w-8 h-8 object-contain" />
           </div>
           <div>
             <h1 className="font-black text-lg text-white tracking-tight">
