@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyRound, LogOut, RefreshCw } from 'lucide-react';
+import { KeyRound, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw } from 'lucide-react';
 import type { MISUser } from '../types';
 import type { NavPage } from './Sidebar';
 import { ChangePasswordModal } from './ChangePasswordModal';
@@ -12,6 +12,8 @@ interface HeaderProps {
   onViewApprovals?: () => void;
   currentUser?: MISUser | null;
   onLogout?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   onViewApprovals,
   currentUser,
   onLogout,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
 }) => {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const titles: Record<NavPage, { title: string; subtitle: string }> = {
@@ -68,10 +72,26 @@ export const Header: React.FC<HeaderProps> = ({
       : currentUser?.role || 'Administrator';
 
   return (
-    <header className="h-20 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-8 flex items-center justify-between sticky top-0 z-20 shadow-md">
-      <div>
-        <h1 className="text-xl font-bold text-slate-100 tracking-tight">{current.title}</h1>
-        <p className="text-xs text-slate-400 mt-0.5">{current.subtitle}</p>
+    <header className="h-20 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-6 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-md">
+      <div className="flex items-center gap-3">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-400 hover:text-white transition border border-slate-700/80 cursor-pointer shadow-sm"
+          >
+            {isSidebarCollapsed ? (
+              <PanelLeftOpen className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
+        )}
+        <div>
+          <h1 className="text-xl font-bold text-slate-100 tracking-tight">{current.title}</h1>
+          <p className="text-xs text-slate-400 mt-0.5">{current.subtitle}</p>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

@@ -15,6 +15,17 @@ export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<MISUser | null>(() => api.getUser());
   const [activePage, setActivePage] = useState<NavPage>('home');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('mis_sidebar_collapsed') === 'true';
+  });
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('mis_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
 
   // App-level Shared Data
   const [kpis, setKpis] = useState<DashboardKPIs>({
@@ -112,10 +123,12 @@ export const App: React.FC = () => {
         pendingApprovalsCount={kpis.pendingApprovals.totalCount}
         currentUser={currentUser}
         onLogout={handleLogout}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
         <Header
           activePage={activePage}
           onRefresh={loadAllData}
@@ -124,6 +137,8 @@ export const App: React.FC = () => {
           onViewApprovals={() => handleNavigate('finance')}
           currentUser={currentUser}
           onLogout={handleLogout}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
         />
 
         {/* Page Content Container */}

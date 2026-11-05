@@ -37,7 +37,7 @@ export default function Loans() {
   };
 
   return (
-    <div className="space-y-4 animate-fadeIn pb-14">
+    <div className="space-y-4 animate-fadeIn pb-28">
       {/* Header Banner */}
       <div className="bg-amber-800 text-white p-4 rounded-2xl shadow-sm flex items-center justify-between">
         <div>
@@ -279,10 +279,17 @@ export default function Loans() {
         )}
       </div>
 
-      {/* Floating Create Loan Button */}
-      <div className="fixed bottom-20 left-0 right-0 max-w-md mx-auto px-4 pointer-events-none z-50 flex justify-end">
+      {/* Floating Create Loan Button - Fixed directly above bottom nav */}
+      <div className="fixed bottom-20 left-0 right-0 max-w-md mx-auto px-4 pointer-events-none z-40 flex justify-end">
         <button
-          onClick={() => setModalOpen(true)}
+          type="button"
+          onClick={() => {
+            if (members.length === 0) {
+              alert(t('noMembersWarning'));
+              return;
+            }
+            setModalOpen(true);
+          }}
           className="pointer-events-auto bg-amber-700 hover:bg-amber-800 active:scale-95 text-white px-4 py-3 rounded-full shadow-2xl flex items-center space-x-2 transition-all border border-amber-500 cursor-pointer"
         >
           <Plus className="w-5 h-5" />
