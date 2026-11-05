@@ -56,6 +56,11 @@ export function AuthProvider({ children }) {
           setIsAuthenticated(true);
           return { success: true, user: fallbackUser, isOffline: true };
         }
+
+        return {
+          success: false,
+          error: 'Network connection failed. Please check internet connectivity.',
+        };
       }
 
       return {

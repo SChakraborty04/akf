@@ -46,7 +46,12 @@ function matchOriginPattern(pattern: string, origin: string): boolean {
 export function createApp(deps: AppDeps = {}) {
   const app = new Hono<AppEnv>();
 
-  app.use('*', secureHeaders());
+  app.use(
+    '*',
+    secureHeaders({
+      crossOriginResourcePolicy: 'cross-origin',
+    }),
+  );
   app.use('*', async (c, next) => {
     const rawOrigins = c.env.CORS_ORIGINS?.trim();
     const customOrigins = rawOrigins ? rawOrigins.split(',').map((o) => o.trim()).filter(Boolean) : [];
@@ -54,15 +59,30 @@ export function createApp(deps: AppDeps = {}) {
 
     return cors({
       origin: (origin) => {
-        if (!origin) return '*';
-        if (allowed.some((pattern) => matchOriginPattern(pattern, origin))) {
+        // Native mobile clients, curl, or WebView file:// sends no origin or 'null'
+        if (!origin || origin === 'null') return '*';
+
+        // Check if explicitly allowed or wildcard is configured
+        if (allowed.includes('*') || allowed.some((pattern) => matchOriginPattern(pattern, origin))) {
           return origin;
         }
-        // Always support local development origins
-        if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+
+        // Support all mobile APK origins (Capacitor, Cordova, Ionic, Android TWA, WebView)
+        if (
+          origin.startsWith('http://localhost') ||
+          origin.startsWith('https://localhost') ||
+          origin.startsWith('http://127.0.0.1') ||
+          origin.startsWith('capacitor://') ||
+          origin.startsWith('ionic://') ||
+          origin.startsWith('android-app://') ||
+          origin.startsWith('file://') ||
+          origin.includes('androidplatform.net')
+        ) {
           return origin;
         }
-        return null;
+
+        // Allow any other valid origin so mobile WebView packaging never gets blocked by CORS
+        return origin;
       },
       allowHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'Accept'],
       allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],

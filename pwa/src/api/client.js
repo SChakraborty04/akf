@@ -6,11 +6,21 @@
 
 function getApiBase() {
   const envUrl = (import.meta.env?.VITE_API_URL || '').trim();
-  if (envUrl) {
+  if (envUrl && !envUrl.includes('localhost:8787')) {
     const cleaned = envUrl.replace(/\/+$/, '');
     return cleaned.endsWith('/v1') ? cleaned : `${cleaned}/v1`;
   }
-  return 'http://localhost:8787/v1';
+  // In production builds, APK packages, or deployed environments, default to live Cloudflare Worker
+  if (
+    import.meta.env?.PROD ||
+    (typeof window !== 'undefined' &&
+      (window.location.protocol === 'capacitor:' ||
+        window.location.protocol === 'file:' ||
+        window.location.hostname !== 'localhost'))
+  ) {
+    return 'https://api.empty-haze-e864.workers.dev/v1';
+  }
+  return envUrl || 'http://localhost:8787/v1';
 }
 
 const API_BASE = getApiBase();
