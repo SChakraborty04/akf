@@ -70,7 +70,9 @@ export default function Repayments() {
           onChange={(e) => setSelectedMemberFilter(e.target.value)}
           className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-semibold text-slate-800 focus:ring-2 focus:ring-cyan-600 focus:outline-none"
         >
-          <option value="">{t('allMembers')} ({members.length})</option>
+          <option value="">
+            {members.length === 0 ? t('noMembersPrompt') : `${t('allMembers')} (${members.length})`}
+          </option>
           {members.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name} ({m.hhNo})
@@ -86,6 +88,12 @@ export default function Repayments() {
           </button>
         )}
       </div>
+
+      {members.length === 0 && (
+        <div className="bg-cyan-50 border border-cyan-200 rounded-2xl p-3.5 text-center text-xs text-cyan-800 font-medium">
+          {t('noMembersWarning')}
+        </div>
+      )}
 
       {/* Total Filtered Metric */}
       <div className="bg-cyan-50 border border-cyan-200 p-3.5 rounded-2xl flex items-center justify-between">

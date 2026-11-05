@@ -932,7 +932,11 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                                 Members
                               </span>
-                              <span className="font-bold text-slate-800">{shg.memberCount ?? 12} Registered</span>
+                              <span className="font-bold text-slate-800">
+                                {shg.memberCount !== undefined && shg.memberCount !== null
+                                  ? `${shg.memberCount} Registered`
+                                  : '0 Registered'}
+                              </span>
                             </div>
                             <div>
                               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
@@ -1050,6 +1054,16 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                     <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
                     <p className="text-xs font-semibold">Calculating weekly financial schedules...</p>
                   </div>
+                ) : weeklyFinanceData && weeklyFinanceData.totalMembers === 0 ? (
+                  <div className="p-12 text-center text-slate-500 space-y-3">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
+                      <Users className="w-7 h-7" />
+                    </div>
+                    <h4 className="font-bold text-slate-800 text-base">No Members in this SHG</h4>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                      This SHG does not have any registered members yet. Please add members under <strong>Master &gt; Members</strong> to begin recording weekly meetings and transactions.
+                    </p>
+                  </div>
                 ) : displayedWeeks.length === 0 ? (
                   <div className="p-12 text-center text-slate-400">
                     <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1071,7 +1085,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                           <th className="py-3.5 px-4 text-right">Re-Payment</th>
                           <th className="py-3.5 px-4 text-right">Box Amount</th>
                           <th className="py-3.5 px-4 text-right">Outstanding Amount</th>
-                          <th className="py-3.5 px-4 text-center">Approved (x/{weeklyFinanceData?.totalMembers ?? 12})</th>
+                          <th className="py-3.5 px-4 text-center">Approved (x/{weeklyFinanceData?.totalMembers ?? 0})</th>
                           <th className="py-3.5 px-4 text-center">Action</th>
                         </tr>
                       </thead>
@@ -1211,7 +1225,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                         title="Approve all remaining pending member records for this week"
                       >
                         <Check className="w-3.5 h-3.5" />
-                        <span>Approve All (12/12)</span>
+                        <span>Approve All ({selectedWeek.approvedCount}/{selectedWeek.totalCount})</span>
                       </button>
                     )}
                   </div>

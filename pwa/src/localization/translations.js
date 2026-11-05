@@ -123,8 +123,14 @@ export const translations = {
     amount: "Amount (₹)",
     date: "Date",
     description: "Description / Notes",
-    resetDataBtn: "Reset App to Seed Data",
-    resetConfirm: "Are you sure you want to reset all data to default seed data?",
+    resetDataBtn: "Re-sync from Server",
+    resetConfirm: "Are you sure you want to refresh and re-sync all data from the server?",
+
+    // Empty state & No members
+    noMembersTitle: "No Members Registered",
+    noMembersWarning: "No members in this SHG. Please ask admin to add members.",
+    noMembersPrompt: "No members - ask admin to add",
+    noMembersDesc: "This SHG does not have any members registered yet. Please ask the administrator to add members in the MIS Portal before recording transactions.",
 
     // Member-level & Stamps & Shapes
     selectMember: "Select Member",
@@ -278,8 +284,14 @@ export const translations = {
     amount: "राशि (₹)",
     date: "तिथि",
     description: "विवरण / नोट्स",
-    resetDataBtn: "ऐप को शुरुआती डेटा पर रीसेट करें",
-    resetConfirm: "क्या आप वाकई सभी डेटा को डिफ़ॉल्ट डेटा पर रीसेट करना चाहते हैं?",
+    resetDataBtn: "सर्वर से डेटा पुनः सिंक करें",
+    resetConfirm: "क्या आप वाकई सर्वर से सारा डेटा पुनः सिंक करना चाहते हैं?",
+
+    // Empty state & No members
+    noMembersTitle: "कोई सदस्य पंजीकृत नहीं है",
+    noMembersWarning: "समूह में कोई सदस्य नहीं हैं। कृपया व्यवस्थापक (Admin) से सदस्य जोड़ने के लिए कहें।",
+    noMembersPrompt: "कोई सदस्य नहीं - एडमिन से जोड़ने को कहें",
+    noMembersDesc: "इस समूह में अभी कोई सदस्य पंजीकृत नहीं हैं। कृपया लेन-देन दर्ज करने से पहले व्यवस्थापक (Admin) से सदस्य जोड़ने के लिए कहें।",
 
     // Member-level & Stamps & Shapes
     selectMember: "सदस्य चुनें",

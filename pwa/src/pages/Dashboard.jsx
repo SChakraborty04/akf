@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PiggyBank, HandCoins, RotateCcw, ArrowRight, BookOpen, PlusCircle } from 'lucide-react';
+import { PiggyBank, HandCoins, RotateCcw, ArrowRight, BookOpen, PlusCircle, AlertCircle, Users } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useData } from '../context/DataContext';
 import { calculateDashboardSummary } from '../utils/calculations';
@@ -11,7 +11,7 @@ import QuickActionModal from '../components/QuickActionModal';
 export default function Dashboard() {
   const navigate = useNavigate();
   const { language, t } = useLanguage();
-  const { deposits, loans, repayments, ledger } = useData();
+  const { deposits, loans, repayments, ledger, members = [] } = useData();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('deposit');
@@ -20,6 +20,10 @@ export default function Dashboard() {
   const recentLedger = ledger.slice(0, 5);
 
   const openAction = (mode) => {
+    if (members.length === 0) {
+      alert(t('noMembersWarning'));
+      return;
+    }
     setModalMode(mode);
     setModalOpen(true);
   };
@@ -28,6 +32,23 @@ export default function Dashboard() {
     <div className="space-y-5 animate-fadeIn">
       {/* 4-Quadrant Summary Card */}
       <SummaryCard summary={summary} />
+
+      {/* Alert Banner when SHG has no members */}
+      {members.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-4 flex items-start space-x-3 text-amber-900 shadow-xs">
+          <div className="p-2 bg-amber-100 rounded-xl text-amber-700 shrink-0 mt-0.5">
+            <Users className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold text-amber-950">
+              {t('noMembersTitle')}
+            </h3>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              {t('noMembersDesc')}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 3 Quick Action Buttons */}
       <div>

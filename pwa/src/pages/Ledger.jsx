@@ -66,7 +66,9 @@ export default function Ledger() {
           onChange={(e) => setSelectedMemberFilter(e.target.value)}
           className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-semibold text-slate-800 focus:ring-2 focus:ring-slate-600 focus:outline-none"
         >
-          <option value="">{t('allMembers')} ({members.length})</option>
+          <option value="">
+            {members.length === 0 ? t('noMembersPrompt') : `${t('allMembers')} (${members.length})`}
+          </option>
           {members.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name} ({m.hhNo})
@@ -82,6 +84,12 @@ export default function Ledger() {
           </button>
         )}
       </div>
+
+      {members.length === 0 && (
+        <div className="bg-slate-100 border border-slate-200 rounded-2xl p-3.5 text-center text-xs text-slate-600 font-medium">
+          {t('noMembersWarning')}
+        </div>
+      )}
 
       {/* Credits vs Debits Summary */}
       <div className="grid grid-cols-2 gap-2 text-xs">

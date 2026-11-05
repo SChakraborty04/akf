@@ -345,13 +345,36 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
 
         {/* Scrollable Form Content */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-          {/* ======================================================== */}
-          {/* 1. DEPOSIT MODE: Member-Level Stamp Table                */}
-          {/* ======================================================== */}
-          {mode === 'deposit' && (
-            <div className="space-y-3.5">
-              {/* Date & Stamp Value Info */}
-              <div className="grid grid-cols-2 gap-2.5">
+          {members.length === 0 ? (
+            <div className="py-10 px-4 text-center space-y-3">
+              <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto border border-amber-200">
+                <Users className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm">
+                  {t('noMembersTitle')}
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto leading-relaxed">
+                  {t('noMembersDesc')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="mt-4 px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                {t('close')}
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* ======================================================== */}
+              {/* 1. DEPOSIT MODE: Member-Level Stamp Table                */}
+              {/* ======================================================== */}
+              {mode === 'deposit' && (
+                <div className="space-y-3.5">
+                  {/* Date & Stamp Value Info */}
+                  <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
                     {t('date')} <span className="text-rose-500">*</span>
@@ -954,29 +977,31 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="pt-2 flex items-center space-x-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={
-                (mode === 'deposit' && totalDepositAmount <= 0) ||
-                (mode === 'loan' && (totalStampsValue <= 0 || !selectedMemberId)) ||
-                (mode === 'repayment' &&
-                  (totalStampsValue <= 0 || !selectedLoanId || memberActiveLoans.length === 0))
-              }
-              className="flex-1 py-2.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center justify-center space-x-1.5"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>{t('submit')}</span>
-            </button>
-          </div>
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center space-x-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    (mode === 'deposit' && totalDepositAmount <= 0) ||
+                    (mode === 'loan' && (totalStampsValue <= 0 || !selectedMemberId)) ||
+                    (mode === 'repayment' &&
+                      (totalStampsValue <= 0 || !selectedLoanId || memberActiveLoans.length === 0))
+                  }
+                  className="flex-1 py-2.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{t('submit')}</span>
+                </button>
+              </div>
+            </>
+          )}
         </form>
       </div>
     </div>

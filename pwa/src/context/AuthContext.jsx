@@ -18,6 +18,9 @@ export function AuthProvider({ children }) {
     const trimmedPass = (password || '').trim();
 
     try {
+      // Clear any prior cached data from previous sessions/groups
+      localStorage.removeItem('lakshi_shg_data');
+
       // Connect to backend API to authenticate and register lastLoginAt
       const data = await api.login(trimmedUser, trimmedPass);
       setUser(data.user);
@@ -26,7 +29,7 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.warn('[PWA Auth] Remote authentication failed:', err);
 
-      // Offline-first fallback: allow access if network is unavailable and offline session/credentials match
+      // Offline-first fallback: allow access only if network is unavailable and offline session matches
       const isNetworkError =
         err?.message?.includes('Failed to fetch') ||
         err?.message?.includes('NetworkError') ||
@@ -35,26 +38,14 @@ export function AuthProvider({ children }) {
 
       if (isNetworkError) {
         const cachedUser = api.getUser();
-        if (
-          (cachedUser && cachedUser.username === trimmedUser) ||
-          (trimmedUser === 'lakshigroup' && trimmedPass === 'lakshigroup')
-        ) {
-          const fallbackUser = cachedUser || {
-            id: '5c557123-28c2-4167-96c9-787288a690fe',
-            username: 'lakshigroup',
-            fullName: 'Lakshi Group Operator',
-            role: 'operator',
-            language: 'en',
-            groupId: '1fa54488-7d49-4eaf-8f86-0774ae4846ea',
-            groupName: 'Lakshi Group',
-          };
+        if (cachedUser && cachedUser.username === trimmedUser) {
           api.setSession({
             accessToken: api.getToken() || 'offline-token',
-            user: fallbackUser,
+            user: cachedUser,
           });
-          setUser(fallbackUser);
+          setUser(cachedUser);
           setIsAuthenticated(true);
-          return { success: true, user: fallbackUser, isOffline: true };
+          return { success: true, user: cachedUser, isOffline: true };
         }
 
         return {
@@ -72,6 +63,12 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     await api.logout().catch(() => null);
+    try {
+      localStorage.removeItem('lakshi_shg_data');
+      localStorage.removeItem('lakshi_auth');
+    } catch (e) {
+      // ignore
+    }
     setUser(null);
     setIsAuthenticated(false);
   };

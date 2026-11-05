@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { INITIAL_SEED_DATA } from '../constants/seedData';
 import { processRepaymentWaterfall } from '../utils/calculations';
 import { api } from '../api/client';
 import { useAuth } from './AuthContext';
@@ -12,6 +11,36 @@ const isUUID = (str) =>
   typeof str === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
+export const DEFAULT_LOAN_SHAPES = [
+  { id: 'pentagon', code: 'pentagon', name: 'Pentagon', symbol: 'pentagon', value: 500, color: '#0d9488' },
+  { id: 'circle', code: 'circle', name: 'Circle', symbol: 'circle', value: 1000, color: '#2563eb' },
+  { id: 'triangle', code: 'triangle', name: 'Triangle', symbol: 'triangle', value: 3000, color: '#d97706' },
+  { id: 'star', code: 'star', name: 'Star', symbol: 'star', value: 5000, color: '#7c3aed' },
+  { id: 'sun', code: 'sun', name: 'Sun', symbol: 'sun', value: 10000, color: '#ea580c' },
+];
+
+export const EMPTY_GROUP_DATA = {
+  groupProfile: {
+    id: '',
+    name: 'SHG Group',
+    hindiName: 'स्वयं सहायता समूह',
+    district: '',
+    block: '',
+    panchayat: '',
+    formationDate: '',
+    memberCount: 0,
+    stampValue: 50,
+    cycleNo: 1,
+    meetingDay: 'Weekly',
+  },
+  loanShapes: DEFAULT_LOAN_SHAPES,
+  deposits: [],
+  loans: [],
+  repayments: [],
+  ledger: [],
+  members: [],
+};
+
 export function DataProvider({ children }) {
   const { isAuthenticated, user } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -21,32 +50,28 @@ export function DataProvider({ children }) {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        const members = parsed.members || INITIAL_SEED_DATA.members;
 
-        const loans = (parsed.loans || INITIAL_SEED_DATA.loans).map((l) => {
-          if (!l.memberId) {
-            const fallbackMember = members[0] || { id: 'm1', name: 'Sunita Devi' };
-            return { ...l, memberId: fallbackMember.id, memberName: fallbackMember.name };
-          }
-          return {
-            ...l,
-            status: l.status?.toLowerCase() === 'paid' ? 'Paid' : 'Active',
-          };
-        });
+        // Discard any stale legacy mock seed data (e.g. member IDs 'm1', 'm2' or old 'Lakshi Group' mock)
+        const hasLegacySeed =
+          (parsed.members || []).some(
+            (m) => typeof m.id === 'string' && m.id.startsWith('m') && !m.id.includes('-')
+          ) || parsed.groupProfile?.name === 'Lakshi Group';
 
-        const repayments = (parsed.repayments || INITIAL_SEED_DATA.repayments).map((r) => {
-          if (!r.memberId) {
-            const associatedLoan = loans.find((l) => l.id === r.loanId);
-            return {
-              ...r,
-              memberId: associatedLoan?.memberId || 'm1',
-              memberName: associatedLoan?.memberName || 'Sunita Devi',
-            };
-          }
-          return r;
-        });
+        if (hasLegacySeed) {
+          localStorage.removeItem(LOCAL_STORAGE_KEY);
+          return EMPTY_GROUP_DATA;
+        }
 
-        const ledger = (parsed.ledger || INITIAL_SEED_DATA.ledger).map((item) => ({
+        const members = Array.isArray(parsed.members) ? parsed.members : [];
+
+        const loans = (parsed.loans || []).map((l) => ({
+          ...l,
+          status: l.status?.toLowerCase() === 'paid' ? 'Paid' : 'Active',
+        }));
+
+        const repayments = Array.isArray(parsed.repayments) ? parsed.repayments : [];
+        const deposits = Array.isArray(parsed.deposits) ? parsed.deposits : [];
+        const ledger = (parsed.ledger || []).map((item) => ({
           ...item,
           type: item.type
             ? item.type.charAt(0).toUpperCase() + item.type.slice(1).toLowerCase()
@@ -54,9 +79,9 @@ export function DataProvider({ children }) {
         }));
 
         return {
-          groupProfile: parsed.groupProfile || INITIAL_SEED_DATA.groupProfile,
-          loanShapes: parsed.loanShapes || INITIAL_SEED_DATA.loanShapes,
-          deposits: parsed.deposits || INITIAL_SEED_DATA.deposits,
+          groupProfile: parsed.groupProfile || EMPTY_GROUP_DATA.groupProfile,
+          loanShapes: parsed.loanShapes || DEFAULT_LOAN_SHAPES,
+          deposits,
           loans,
           repayments,
           ledger,
@@ -64,9 +89,9 @@ export function DataProvider({ children }) {
         };
       }
     } catch (e) {
-      console.error('Error loading Lakshi SHG data from localStorage:', e);
+      console.error('Error loading SHG data from localStorage:', e);
     }
-    return INITIAL_SEED_DATA;
+    return EMPTY_GROUP_DATA;
   });
 
   // Sync to localStorage on state changes
@@ -129,7 +154,7 @@ export function DataProvider({ children }) {
       const freshData = {
         groupProfile: snapshot.groupProfile || data.groupProfile,
         loanShapes: normalizedShapes.length > 0 ? normalizedShapes : data.loanShapes,
-        members: normalizedMembers.length > 0 ? normalizedMembers : data.members,
+        members: normalizedMembers, // Strictly authoritative: 0 members on server means 0 members in PWA
         deposits: normalizedDeposits,
         loans: normalizedLoans,
         repayments: normalizedRepayments,
@@ -143,7 +168,7 @@ export function DataProvider({ children }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [data.groupProfile, data.loanShapes, data.members]);
+  }, [data.groupProfile, data.loanShapes]);
 
   // Sync snapshot when operator is authenticated
   useEffect(() => {
@@ -405,13 +430,13 @@ export function DataProvider({ children }) {
     return newRepayment;
   };
 
-  // 4. Reset Data to Seed Data
+  // 4. Reset Data / Re-sync from server
   const resetData = async () => {
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
     if (api.getToken()) {
       await syncSnapshot();
     } else {
-      setData(INITIAL_SEED_DATA);
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_SEED_DATA));
+      setData(EMPTY_GROUP_DATA);
     }
   };
 
@@ -419,7 +444,7 @@ export function DataProvider({ children }) {
     <DataContext.Provider
       value={{
         groupProfile: data.groupProfile,
-        loanShapes: data.loanShapes || INITIAL_SEED_DATA.loanShapes,
+        loanShapes: data.loanShapes?.length > 0 ? data.loanShapes : DEFAULT_LOAN_SHAPES,
         deposits: data.deposits,
         loans: data.loans,
         repayments: data.repayments,
