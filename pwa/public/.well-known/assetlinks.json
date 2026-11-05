@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "in.boxfarming.akf_pwa.twa",
+    "sha256_cert_fingerprints": [
+      "6B:CE:39:40:84:81:5A:F9:26:6F:D6:5A:2E:98:5A:C3:54:24:C7:0E:9F:95:E4:14:5D:83:CD:75:25:45:0E:A5"
+    ]
+  }
+}]
