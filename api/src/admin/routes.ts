@@ -261,8 +261,8 @@ adminRoutes.post('/master/shg', async (c) => {
   const operatorUsername = typeof body.operatorUsername === 'string' ? body.operatorUsername.trim() : '';
   const operatorPassword = typeof body.operatorPassword === 'string' ? body.operatorPassword.trim() : '';
 
-  if (!name || !operatorUsername || !operatorPassword) {
-    throw unprocessable('Name, operator username and password are required', 'MISSING_FIELDS');
+  if (!name) {
+    throw unprocessable('SHG name is required', 'MISSING_FIELDS');
   }
 
   const payload = {
@@ -272,8 +272,9 @@ adminRoutes.post('/master/shg', async (c) => {
     district,
     block,
     panchayat,
-    operatorUsername,
-    operatorPassword,
+    operatorUsername: operatorUsername || undefined,
+    operatorPassword: operatorPassword || undefined,
+    operatorFullName: typeof body.operatorFullName === 'string' && body.operatorFullName.trim() ? body.operatorFullName.trim() : undefined,
   };
 
   const result = await c.var.tx((tx) => createAdminGroup(tx, payload));

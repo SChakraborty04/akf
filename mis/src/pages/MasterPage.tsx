@@ -140,6 +140,7 @@ export const MasterPage: React.FC = () => {
     operatorPassword: '',
     operatorFullName: '',
   });
+  const [provisionOperatorWithShg, setProvisionOperatorWithShg] = useState(false);
 
   // Member Registration State
   const [selectedShgId, setSelectedShgId] = useState<string>('');
@@ -151,9 +152,30 @@ export const MasterPage: React.FC = () => {
     mobileNo: '',
     age: 30,
     caste: 'OBC',
+    assignAsOperator: false,
+    operatorUsername: '',
+    operatorPassword: 'Pass@123',
   });
   const [shgMembersList, setShgMembersList] = useState<any[]>([]);
+  const [shgUsersList, setShgUsersList] = useState<any[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // Modal for assigning an existing enrolled member as an operator
+  const [assignOperatorModal, setAssignOperatorModal] = useState<{
+    isOpen: boolean;
+    member: any | null;
+    username: string;
+    password: string;
+    fullName: string;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    member: null,
+    username: '',
+    password: 'Pass@123',
+    fullName: '',
+    loading: false,
+  });
 
   // Excel Upload State
   const [excelTargetShgId, setExcelTargetShgId] = useState<string>('');
@@ -231,8 +253,9 @@ export const MasterPage: React.FC = () => {
   const loadGroupMembers = async (groupId: string) => {
     setLoadingMembers(true);
     try {
-      const detail = await api.getGroupDetail(groupId);
+      const detail: any = await api.getGroupDetail(groupId);
       setShgMembersList(detail.members || []);
+      setShgUsersList(detail.users || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -261,14 +284,14 @@ export const MasterPage: React.FC = () => {
       showNotification('error', 'State, District, Block, and Panchayat are required for Geographic Hierarchy.');
       return;
     }
-    if (!shgForm.operatorUsername.trim() || !shgForm.operatorPassword.trim()) {
-      showNotification('error', 'Operator Username and Initial Password are required.');
+    if (provisionOperatorWithShg && (!shgForm.operatorUsername.trim() || !shgForm.operatorPassword.trim())) {
+      showNotification('error', 'Operator Username and Initial Password are required when provisioning an operator.');
       return;
     }
 
     try {
       setLoading(true);
-      await api.createGroup({
+      const payload: any = {
         name: shgForm.name.trim(),
         hindiName: shgForm.hindiName?.trim() || undefined,
         state: shgForm.state.trim(),
@@ -286,9 +309,6 @@ export const MasterPage: React.FC = () => {
         approvalRequired: true,
         cycleNo: Number(shgForm.cycleNo),
         durationWeeks: Number(shgForm.durationWeeks),
-        operatorUsername: shgForm.operatorUsername.trim().toLowerCase(),
-        operatorPassword: shgForm.operatorPassword,
-        operatorFullName: shgForm.operatorFullName?.trim() || `${shgForm.name.trim()} Operator`,
         group: {
           name: shgForm.name.trim(),
           hindiName: shgForm.hindiName?.trim() || undefined,
@@ -310,14 +330,27 @@ export const MasterPage: React.FC = () => {
           cycleNo: Number(shgForm.cycleNo),
           durationWeeks: Number(shgForm.durationWeeks),
         },
-        operator: {
+      };
+
+      if (provisionOperatorWithShg && shgForm.operatorUsername.trim() && shgForm.operatorPassword.trim()) {
+        payload.operatorUsername = shgForm.operatorUsername.trim().toLowerCase();
+        payload.operatorPassword = shgForm.operatorPassword;
+        payload.operatorFullName = shgForm.operatorFullName?.trim() || `${shgForm.name.trim()} Operator`;
+        payload.operator = {
           username: shgForm.operatorUsername.trim().toLowerCase(),
           password: shgForm.operatorPassword,
           fullName: shgForm.operatorFullName?.trim() || `${shgForm.name.trim()} Operator`,
-        },
-      });
+        };
+      }
 
-      showNotification('success', `SHG "${shgForm.name.trim()}" created successfully with operator credentials.`);
+      await api.createGroup(payload);
+
+      if (provisionOperatorWithShg && shgForm.operatorUsername.trim()) {
+        showNotification('success', `SHG "${shgForm.name.trim()}" created successfully with operator @${shgForm.operatorUsername.trim().toLowerCase()}.`);
+      } else {
+        showNotification('success', `SHG "${shgForm.name.trim()}" created successfully. You can now enroll members and assign an operator.`);
+      }
+
       // reset form
       setShgForm({
         name: '',
@@ -340,6 +373,7 @@ export const MasterPage: React.FC = () => {
         operatorPassword: '',
         operatorFullName: '',
       });
+      setProvisionOperatorWithShg(false);
       loadData();
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to create SHG.');
@@ -355,24 +389,46 @@ export const MasterPage: React.FC = () => {
       showNotification('error', 'Please select an SHG group first.');
       return;
     }
-    if (!memberForm.name || !memberForm.hhNo) {
+    if (!memberForm.name.trim() || !memberForm.hhNo.trim()) {
       showNotification('error', 'Member name and Household No (HH No) are required.');
+      return;
+    }
+
+    if (memberForm.assignAsOperator && (!memberForm.operatorUsername.trim() || !memberForm.operatorPassword.trim())) {
+      showNotification('error', 'Operator Username and Initial Password are required when assigning as operator.');
       return;
     }
 
     try {
       setLoadingMembers(true);
       await api.addMember(selectedShgId, {
-        name: memberForm.name,
-        hindiName: memberForm.hindiName || undefined,
+        name: memberForm.name.trim(),
+        hindiName: memberForm.hindiName?.trim() || undefined,
         hhNo: memberForm.hhNo.trim(),
-        husbandName: memberForm.husbandName || undefined,
-        mobileNo: memberForm.mobileNo || undefined,
+        husbandName: memberForm.husbandName?.trim() || undefined,
+        mobileNo: memberForm.mobileNo?.trim() || undefined,
         age: Number(memberForm.age) || undefined,
         caste: memberForm.caste || undefined,
       });
 
-      showNotification('success', `Member "${memberForm.name}" enrolled into SHG.`);
+      // If assignAsOperator is true, also create user account
+      if (memberForm.assignAsOperator && memberForm.operatorUsername.trim()) {
+        await api.createUser({
+          username: memberForm.operatorUsername.trim().toLowerCase(),
+          password: memberForm.operatorPassword,
+          fullName: `${memberForm.name.trim()} (${memberForm.hhNo.trim()})`,
+          role: 'operator',
+          groupId: selectedShgId,
+          assignedGroupIds: [selectedShgId],
+        });
+        showNotification(
+          'success',
+          `Member "${memberForm.name}" enrolled and assigned as Operator (@${memberForm.operatorUsername.trim().toLowerCase()}).`
+        );
+      } else {
+        showNotification('success', `Member "${memberForm.name}" enrolled into SHG.`);
+      }
+
       setMemberForm({
         name: '',
         hindiName: '',
@@ -381,6 +437,9 @@ export const MasterPage: React.FC = () => {
         mobileNo: '',
         age: 30,
         caste: 'OBC',
+        assignAsOperator: false,
+        operatorUsername: '',
+        operatorPassword: 'Pass@123',
       });
       loadGroupMembers(selectedShgId);
       loadData(); // update member counts
@@ -388,6 +447,62 @@ export const MasterPage: React.FC = () => {
       showNotification('error', err.message || 'Failed to add member.');
     } finally {
       setLoadingMembers(false);
+    }
+  };
+
+  const handleOpenAssignOperator = (member: any) => {
+    const shg = shgs.find((g) => g.id === selectedShgId);
+    const cleanShg = (shg?.name || 'shg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+    const cleanMem = (member.name || 'op').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+    const cleanHh = (member.hhNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const suggestedUsername = `op_${cleanShg}_${cleanHh || cleanMem}`;
+
+    setAssignOperatorModal({
+      isOpen: true,
+      member,
+      username: suggestedUsername,
+      password: 'Pass@123',
+      fullName: `${member.name} (${member.hhNo || 'Operator'})`,
+      loading: false,
+    });
+  };
+
+  const handleAssignOperatorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignOperatorModal.member || !selectedShgId) return;
+    if (!assignOperatorModal.username.trim() || !assignOperatorModal.password.trim()) {
+      showNotification('error', 'Please enter Operator Username and Password.');
+      return;
+    }
+
+    try {
+      setAssignOperatorModal((prev) => ({ ...prev, loading: true }));
+      await api.createUser({
+        username: assignOperatorModal.username.trim().toLowerCase(),
+        password: assignOperatorModal.password,
+        fullName: assignOperatorModal.fullName.trim() || assignOperatorModal.member.name,
+        role: 'operator',
+        groupId: selectedShgId,
+        assignedGroupIds: [selectedShgId],
+      });
+
+      showNotification(
+        'success',
+        `Member "${assignOperatorModal.member.name}" successfully assigned as Operator (@${assignOperatorModal.username.trim().toLowerCase()})!`
+      );
+      setAssignOperatorModal({
+        isOpen: false,
+        member: null,
+        username: '',
+        password: 'Pass@123',
+        fullName: '',
+        loading: false,
+      });
+      loadGroupMembers(selectedShgId);
+      loadData();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Failed to assign operator account.');
+      setAssignOperatorModal((prev) => ({ ...prev, loading: false }));
     }
   };
 
@@ -1447,77 +1562,92 @@ export const MasterPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Operator Credentials (Requirement: Create a new SHG with username and password) */}
-              <div className="space-y-4 pt-2 border-t border-slate-800/80 bg-slate-950/40 p-4 rounded-xl border border-indigo-500/20">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                    <KeyRound className="w-4 h-4 text-indigo-400" />
-                    3. Field Operator Login Credentials (PWA Access)
-                  </h3>
-                  <span className="text-[11px] text-indigo-300/80 font-mono">Role: Operator</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Operator Username <span className="text-rose-400">*</span>
-                    </label>
+              {/* Optional Operator Credentials */}
+              <div className="space-y-4 pt-2 border-t border-slate-800/80 bg-slate-950/40 p-4 rounded-xl border border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
                     <input
-                      type="text"
-                      required
-                      placeholder="e.g. pragati_op"
-                      value={shgForm.operatorUsername}
-                      onChange={(e) => setShgForm({ ...shgForm, operatorUsername: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500 transition"
+                      type="checkbox"
+                      checked={provisionOperatorWithShg}
+                      onChange={(e) => setProvisionOperatorWithShg(e.target.checked)}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-700 cursor-pointer"
                     />
-                  </div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                      <KeyRound className="w-4 h-4 text-indigo-400" />
+                      3. Provision Field Operator Account Now (Optional)
+                    </span>
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    {provisionOperatorWithShg ? 'Role: Operator (PWA)' : 'Optional — Assign member as operator later'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Field operators are usually members of the SHG. You can leave this unassigned now and assign any member as an operator after enrolling members, or create an operator account separately in User Management.
+                </p>
 
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Initial Password <span className="text-rose-400">*</span>
-                    </label>
-                    <div className="relative">
+                {provisionOperatorWithShg && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-800/60 animate-fadeIn">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                        Operator Username <span className="text-rose-400">*</span>
+                      </label>
                       <input
-                        type={showPass ? 'text' : 'password'}
-                        required
-                        placeholder="Min 6 characters"
-                        value={shgForm.operatorPassword}
-                        onChange={(e) => setShgForm({ ...shgForm, operatorPassword: e.target.value })}
-                        className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500 transition"
+                        type="text"
+                        required={provisionOperatorWithShg}
+                        placeholder="e.g. pragati_op"
+                        value={shgForm.operatorUsername}
+                        onChange={(e) => setShgForm({ ...shgForm, operatorUsername: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500 transition"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPass(!showPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
-                      >
-                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                        Initial Password <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPass ? 'text' : 'password'}
+                          required={provisionOperatorWithShg}
+                          placeholder="Min 6 characters"
+                          value={shgForm.operatorPassword}
+                          onChange={(e) => setShgForm({ ...shgForm, operatorPassword: e.target.value })}
+                          className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500 transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPass(!showPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                        >
+                          {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                        Operator Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Ramesh Kumar (Secretary)"
+                        value={shgForm.operatorFullName}
+                        onChange={(e) => setShgForm({ ...shgForm, operatorFullName: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500 transition"
+                      />
                     </div>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Operator Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Ramesh Kumar (Secretary)"
-                      value={shgForm.operatorFullName}
-                      onChange={(e) => setShgForm({ ...shgForm, operatorFullName: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500 transition"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm shadow-lg shadow-indigo-600/25 transition disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm shadow-lg shadow-indigo-600/25 transition disabled:opacity-50 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  {loading ? 'Creating Group...' : 'Create SHG & Provision Operator'}
+                  {loading ? 'Creating Group...' : provisionOperatorWithShg ? 'Create SHG & Provision Operator' : 'Create SHG Group'}
                 </button>
               </div>
             </form>
@@ -1691,12 +1821,76 @@ export const MasterPage: React.FC = () => {
                 </select>
               </div>
 
+              {/* Optional Assign as Operator Toggle */}
+              <div className="pt-2 border-t border-slate-800/80 space-y-2.5 bg-slate-950/40 p-3 rounded-xl border border-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={memberForm.assignAsOperator}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      const shg = shgs.find((g) => g.id === selectedShgId);
+                      const cleanShg = (shg?.name || 'shg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+                      const cleanMem = (memberForm.name || 'op').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+                      const cleanHh = (memberForm.hhNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      const suggested = `op_${cleanShg}_${cleanHh || cleanMem}`;
+
+                      setMemberForm({
+                        ...memberForm,
+                        assignAsOperator: checked,
+                        operatorUsername: checked && !memberForm.operatorUsername ? suggested : memberForm.operatorUsername,
+                      });
+                    }}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-700 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                    Assign as SHG Operator (PWA Login)
+                  </span>
+                </label>
+
+                {memberForm.assignAsOperator && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1.5 border-t border-slate-800/60 animate-fadeIn">
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                        Operator Username <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required={memberForm.assignAsOperator}
+                        placeholder="e.g. op_pragati_101"
+                        value={memberForm.operatorUsername}
+                        onChange={(e) => setMemberForm({ ...memberForm, operatorUsername: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                        Initial Password <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required={memberForm.assignAsOperator}
+                        placeholder="Min 6 chars"
+                        value={memberForm.operatorPassword}
+                        onChange={(e) => setMemberForm({ ...memberForm, operatorPassword: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="submit"
                 disabled={loadingMembers}
-                className="w-full mt-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm shadow-lg shadow-indigo-600/25 transition disabled:opacity-50"
+                className="w-full mt-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm shadow-lg shadow-indigo-600/25 transition disabled:opacity-50 cursor-pointer"
               >
-                {loadingMembers ? 'Enrolling...' : 'Enroll Member'}
+                {loadingMembers
+                  ? 'Enrolling...'
+                  : memberForm.assignAsOperator
+                  ? 'Enroll Member & Assign Operator'
+                  : 'Enroll Member'}
               </button>
             </form>
           </div>
@@ -1715,7 +1909,8 @@ export const MasterPage: React.FC = () => {
                 </div>
                 <button
                   onClick={() => selectedShgId && loadGroupMembers(selectedShgId)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 self-end sm:self-auto"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 self-end sm:self-auto cursor-pointer"
+                  title="Refresh members roster"
                 >
                   <RefreshCw className={`w-4 h-4 ${loadingMembers ? 'animate-spin' : ''}`} />
                 </button>
@@ -1735,31 +1930,57 @@ export const MasterPage: React.FC = () => {
                         <th className="pb-3 font-semibold">Husband / Father</th>
                         <th className="pb-3 font-semibold">Mobile</th>
                         <th className="pb-3 font-semibold">Category</th>
-                        <th className="pb-3 font-semibold">Status</th>
+                        <th className="pb-3 font-semibold">Operator Access</th>
+                        <th className="pb-3 font-semibold text-right">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {shgMembersList.map((m) => (
-                        <tr key={m.id} className="hover:bg-slate-800/40 transition">
-                          <td className="py-3 font-mono font-bold text-indigo-400">{m.hhNo}</td>
-                          <td className="py-3 font-medium text-slate-200">
-                            <div>{m.name}</div>
-                            {m.hindiName && <div className="text-[11px] text-slate-400">{m.hindiName}</div>}
-                          </td>
-                          <td className="py-3 text-slate-300">{m.husbandName || '—'}</td>
-                          <td className="py-3 font-mono text-slate-300">{m.mobileNo || '—'}</td>
-                          <td className="py-3">
-                            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px]">
-                              {m.caste || 'OBC'}
-                            </span>
-                          </td>
-                          <td className="py-3">
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-medium">
-                              Active
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {shgMembersList.map((m) => {
+                        const isOp = shgUsersList.some(
+                          (u) =>
+                            (u.role === 'operator' || u.role === 'shg') &&
+                            (u.fullName?.toLowerCase().includes(m.name?.toLowerCase()) ||
+                              u.username?.toLowerCase().includes(m.hhNo?.toLowerCase().replace(/[^a-z0-9]/g, '')))
+                        );
+
+                        return (
+                          <tr key={m.id} className="hover:bg-slate-800/40 transition">
+                            <td className="py-3 font-mono font-bold text-indigo-400">{m.hhNo}</td>
+                            <td className="py-3 font-medium text-slate-200">
+                              <div>{m.name}</div>
+                              {m.hindiName && <div className="text-[11px] text-slate-400">{m.hindiName}</div>}
+                            </td>
+                            <td className="py-3 text-slate-300">{m.husbandName || '—'}</td>
+                            <td className="py-3 font-mono text-slate-300">{m.mobileNo || '—'}</td>
+                            <td className="py-3">
+                              <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px]">
+                                {m.caste || 'OBC'}
+                              </span>
+                            </td>
+                            <td className="py-3">
+                              {isOp ? (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold flex items-center gap-1 w-fit">
+                                  <Shield className="w-3 h-3 text-emerald-400" /> SHG Operator (PWA)
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAssignOperator(m)}
+                                  className="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-[11px] font-medium transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                  title={`Create PWA operator credentials for ${m.name}`}
+                                >
+                                  <KeyRound className="w-3 h-3 text-indigo-400" /> Assign Operator
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-3 text-right">
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-medium">
+                                Active
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -2920,7 +3141,7 @@ export const MasterPage: React.FC = () => {
                   {[
                     { id: 'admin', label: 'Admin', desc: 'Regional Oversight' },
                     { id: 'do', label: 'DO', desc: 'Development Officer' },
-                    { id: 'shg', label: 'SHG', desc: 'Field PWA User' },
+                    { id: 'shg', label: 'SHG Operator', desc: 'Field PWA Login' },
                     { id: 'viewer', label: 'Viewer', desc: 'Auditor Read-only' },
                   ].map((r) => {
                     const isSelected = newUserForm.role === r.id;
@@ -3416,15 +3637,128 @@ export const MasterPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setResetPasswordModal({ open: false, user: null, newPass: '' })}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition"
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/25 transition"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/25 transition cursor-pointer"
                 >
                   Update Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ASSIGN MEMBER AS OPERATOR MODAL */}
+      {assignOperatorModal.isOpen && assignOperatorModal.member && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-100">Assign Member as Operator</h3>
+                  <p className="text-xs text-slate-400">Provision PWA login credentials</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setAssignOperatorModal({
+                    isOpen: false,
+                    member: null,
+                    username: '',
+                    password: 'Pass@123',
+                    fullName: '',
+                    loading: false,
+                  })
+                }
+                className="text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignOperatorSubmit} className="space-y-3.5 text-xs">
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
+                <div className="text-[11px] text-slate-400 font-medium">Selected SHG Member:</div>
+                <div className="font-semibold text-slate-200 text-sm">{assignOperatorModal.member.name}</div>
+                <div className="text-[11px] text-indigo-400 font-mono">
+                  HH No: {assignOperatorModal.member.hhNo || 'N/A'} • Group: {shgs.find((g) => g.id === selectedShgId)?.name}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Operator Username <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. op_pragati_101"
+                  value={assignOperatorModal.username}
+                  onChange={(e) => setAssignOperatorModal({ ...assignOperatorModal, username: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Username for logging into the mobile PWA app.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Initial Password <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Min 6 characters"
+                  value={assignOperatorModal.password}
+                  onChange={(e) => setAssignOperatorModal({ ...assignOperatorModal, password: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={assignOperatorModal.fullName}
+                  onChange={(e) => setAssignOperatorModal({ ...assignOperatorModal, fullName: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAssignOperatorModal({
+                      isOpen: false,
+                      member: null,
+                      username: '',
+                      password: 'Pass@123',
+                      fullName: '',
+                      loading: false,
+                    })
+                  }
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignOperatorModal.loading}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition text-xs shadow-md shadow-indigo-600/30 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  {assignOperatorModal.loading ? 'Creating Account...' : 'Assign Operator Login'}
                 </button>
               </div>
             </form>

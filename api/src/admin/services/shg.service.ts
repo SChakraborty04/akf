@@ -42,9 +42,9 @@ export type CreateShgInput = {
   meetingDay?: string;
   cycleNo?: number;
   durationWeeks?: number;
-  // Operator credentials
-  operatorUsername: string;
-  operatorPassword: string;
+  // Operator credentials (optional)
+  operatorUsername?: string;
+  operatorPassword?: string;
   operatorFullName?: string;
 };
 
@@ -255,10 +255,14 @@ export async function getAdminGroupDetail(db: Db, groupId: string) {
  * 4. Creates operator login account with hashed password
  */
 export async function createAdminGroup(tx: Db, input: CreateShgInput) {
-  const normalizedUsername = input.operatorUsername.trim().toLowerCase();
-  const [existingUser] = await tx.select({ id: users.id }).from(users).where(eq(users.username, normalizedUsername)).limit(1);
-  if (existingUser) {
-    throw unprocessable('Username already in use', 'USERNAME_TAKEN', { username: normalizedUsername });
+  let operatorUser: { id: string; username: string; fullName: string } | null = null;
+
+  if (input.operatorUsername?.trim() && input.operatorPassword) {
+    const normalizedUsername = input.operatorUsername.trim().toLowerCase();
+    const [existingUser] = await tx.select({ id: users.id }).from(users).where(eq(users.username, normalizedUsername)).limit(1);
+    if (existingUser) {
+      throw unprocessable('Username already in use', 'USERNAME_TAKEN', { username: normalizedUsername });
+    }
   }
 
   const [group] = await tx
@@ -299,21 +303,25 @@ export async function createAdminGroup(tx: Db, input: CreateShgInput) {
   // Seed standard loan shapes
   await tx.insert(loanShapes).values(DEFAULT_SHAPES.map((s) => ({ ...s, groupId: group.id })));
 
-  // Provision operator user
-  const passwordHash = await hashPassword(input.operatorPassword);
-  const [user] = await tx
-    .insert(users)
-    .values({
-      groupId: group.id,
-      username: normalizedUsername,
-      passwordHash,
-      fullName: input.operatorFullName?.trim() || `${group.name} Operator`,
-      role: 'operator',
-      language: 'en',
-    })
-    .returning();
+  // Provision operator user if credentials provided
+  if (input.operatorUsername?.trim() && input.operatorPassword) {
+    const normalizedUsername = input.operatorUsername.trim().toLowerCase();
+    const passwordHash = await hashPassword(input.operatorPassword);
+    const [user] = await tx
+      .insert(users)
+      .values({
+        groupId: group.id,
+        username: normalizedUsername,
+        passwordHash,
+        fullName: input.operatorFullName?.trim() || `${group.name} Operator`,
+        role: 'operator',
+        language: 'en',
+      })
+      .returning();
+    operatorUser = { id: user.id, username: user.username, fullName: user.fullName };
+  }
 
-  return { group, operator: { id: user.id, username: user.username, fullName: user.fullName } };
+  return { group, operator: operatorUser };
 }
 
 /**
