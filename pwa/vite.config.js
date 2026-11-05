@@ -41,15 +41,29 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         runtimeCaching: [
           {
-            urlPattern: ({ request }) => request.destination === 'document' || request.destination === 'script' || request.destination === 'style',
+            urlPattern: ({ request }) => request.destination === 'document',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'shg-pwa-html-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days fallback for offline
+              }
+            }
+          },
+          {
+            urlPattern: ({ request }) => request.destination === 'image' || request.destination === 'font',
             handler: 'CacheFirst',
             options: {
-              cacheName: 'lakshi-pwa-cache',
+              cacheName: 'shg-pwa-assets-cache',
               expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 365
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
               }
             }
           }
