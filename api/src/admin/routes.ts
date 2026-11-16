@@ -10,6 +10,7 @@ import {
   addMemberToGroup,
   bulkImportMembers,
   createAdminGroup,
+  deleteAdminGroup,
   getAdminGroupDetail,
   listAdminGroups,
   listLocations,
@@ -285,6 +286,13 @@ adminRoutes.patch('/master/shg/:id', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const updated = await c.var.tx((tx) => updateAdminGroup(tx, c.req.param('id'), body));
   return ok(c, updated);
+});
+
+adminRoutes.delete('/master/shg/:id', requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const confirmName = typeof body?.confirmName === 'string' ? body.confirmName : undefined;
+  const result = await c.var.tx((tx) => deleteAdminGroup(tx, c.req.param('id'), confirmName));
+  return ok(c, result);
 });
 
 /**

@@ -4,10 +4,12 @@ import {
   cycles,
   deposits,
   groups,
+  ledgerEntries,
   loanShapes,
   loans,
   locations,
   members,
+  repayments,
   users,
 } from '../../db/schema';
 import { notFound, unprocessable } from '../../lib/errors';
@@ -517,6 +519,46 @@ export async function updateAdminGroup(
   }
 
   return updatedShapes ? { ...updated, shapes: updatedShapes } : updated;
+}
+
+/**
+ * Permanently deletes an SHG and all associated records (ledger, repayments,
+ * loans, deposits, members, shapes, cycles, operator accounts, and DO assignments).
+ */
+export async function deleteAdminGroup(tx: Db, groupId: string, confirmName?: string) {
+  const [group] = await tx.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+  if (!group) throw notFound('Group');
+
+  if (confirmName !== undefined && confirmName !== group.name) {
+    throw unprocessable(
+      `Confirmation name does not match SHG name "${group.name}"`,
+      'CONFIRMATION_MISMATCH',
+    );
+  }
+
+  // Delete child records in topological order to respect `onDelete: 'restrict'` FKs
+  await tx.delete(ledgerEntries).where(eq(ledgerEntries.groupId, groupId));
+  await tx.delete(repayments).where(eq(repayments.groupId, groupId));
+  await tx.delete(loans).where(eq(loans.groupId, groupId));
+  await tx.delete(deposits).where(eq(deposits.groupId, groupId));
+  await tx.delete(members).where(eq(members.groupId, groupId));
+  await tx.delete(loanShapes).where(eq(loanShapes.groupId, groupId));
+  await tx.delete(cycles).where(eq(cycles.groupId, groupId));
+  await tx.delete(users).where(eq(users.groupId, groupId));
+
+  // Scrub deleted groupId from any DO users' assignedGroupIds
+  const doUsers = await tx
+    .select({ id: users.id, assignedGroupIds: users.assignedGroupIds })
+    .from(users)
+    .where(sql`${groupId} = ANY(${users.assignedGroupIds})`);
+  for (const u of doUsers) {
+    const nextIds = (u.assignedGroupIds || []).filter((id) => id !== groupId);
+    await tx.update(users).set({ assignedGroupIds: nextIds }).where(eq(users.id, u.id));
+  }
+
+  await tx.delete(groups).where(eq(groups.id, groupId));
+
+  return { deleted: true, id: groupId, name: group.name };
 }
 
 /**

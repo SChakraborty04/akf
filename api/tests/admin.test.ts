@@ -247,6 +247,70 @@ describe('Admin MIS API Routes', () => {
     expect(patchRes.json.data.shapes.some((s: any) => s.name === 'Diamond' && s.value === 15000)).toBe(true);
   });
 
+  test('DELETE /admin/master/shg/:id validates confirmation name and deletes SHG with all associated records', async () => {
+    const { request, token, base } = await createTestApp();
+    const opToken = await token();
+
+    const loginRes = await request('/admin/auth/login', {
+      method: 'POST',
+      json: { username: 'admin', password: PASSWORD },
+    });
+    const adminToken = loginRes.json.data.accessToken;
+
+    const membersRes = await request('/v1/members', { token: opToken });
+    const m1 = membersRes.json.data[0];
+
+    // Create deposit, loan, and repayment so all FK tables are populated
+    const depRes = await request('/v1/deposits', {
+      method: 'POST',
+      token: opToken,
+      json: { date: '2026-04-03', items: [{ memberId: m1.id, stamps: 2 }] },
+    });
+    expect(depRes.status).toBe(201);
+
+    const loanRes = await request('/v1/loans', {
+      method: 'POST',
+      token: opToken,
+      json: { memberId: m1.id, date: '2026-04-03', stamps: [{ shape: 'circle' }] },
+    });
+    expect(loanRes.status).toBe(201);
+
+    const repRes = await request('/v1/repayments', {
+      method: 'POST',
+      token: opToken,
+      json: { loanId: loanRes.json.data.id, date: '2026-04-03', stamps: [{ shape: 'circle' }] },
+    });
+    expect(repRes.status).toBe(201);
+
+    // Non-matching confirmation name must fail
+    const badDel = await request(`/admin/master/shg/${base.groupId}`, {
+      method: 'DELETE',
+      token: adminToken,
+      json: { confirmName: 'wrong_name' },
+    });
+    expect(badDel.status).toBe(422);
+
+    // Operator cannot delete SHG
+    const forbiddenDel = await request(`/admin/master/shg/${base.groupId}`, {
+      method: 'DELETE',
+      token: opToken,
+      json: { confirmName: 'Lakshi Group' },
+    });
+    expect(forbiddenDel.status).toBe(403);
+
+    // Valid admin deletion removes SHG and all associated records
+    const delRes = await request(`/admin/master/shg/${base.groupId}`, {
+      method: 'DELETE',
+      token: adminToken,
+      json: { confirmName: 'Lakshi Group' },
+    });
+    expect(delRes.status).toBe(200);
+    expect(delRes.json.data.deleted).toBe(true);
+
+    const checkRes = await request(`/admin/groups/${base.groupId}`, { token: adminToken });
+    expect(checkRes.status).toBe(404);
+  });
+
   test('Finance transactions filter by approval status and approve button works', async () => {
     const { request, token } = await createTestApp();
     const opToken = await token();

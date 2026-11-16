@@ -179,6 +179,13 @@ class ApiClient {
     });
   }
 
+  async deleteGroup(id: string, confirmName: string): Promise<{ deleted: boolean; id: string; name: string }> {
+    return this.request<{ deleted: boolean; id: string; name: string }>(`/master/shg/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirmName }),
+    });
+  }
+
   // Master Locations
   async getMasterLocations(filters: { state?: string; district?: string; block?: string; panchayat?: string; search?: string } = {}): Promise<MasterLocation[]> {
     const q = new URLSearchParams();

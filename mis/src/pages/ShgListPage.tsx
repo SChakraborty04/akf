@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   Building2,
   Calendar,
   CheckCircle2,
@@ -8,6 +9,7 @@ import {
   Filter,
   KeyRound,
   Layers,
+  Loader2,
   MapPin,
   Pencil,
   Plus,
@@ -89,6 +91,16 @@ export const ShgListPage: React.FC<ShgListPageProps> = ({
   const [groupDetail, setGroupDetail] = useState<GroupDetailData | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  const currentUser = api.getUser();
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+
+  // Delete SHG Verification Modal State
+  const [deleteTarget, setDeleteTarget] = useState<SHGGroup | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState<string>('');
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pageNotice, setPageNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Edit Configuration State inside Inspect Drawer
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -380,6 +392,51 @@ export const ShgListPage: React.FC<ShgListPageProps> = ({
     }
   };
 
+  const handleOpenDeleteModal = (group: SHGGroup) => {
+    setDeleteTarget(group);
+    setDeleteConfirmInput('');
+    setDeleteError(null);
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (isDeleting) return;
+    setDeleteTarget(null);
+    setDeleteConfirmInput('');
+    setDeleteError(null);
+  };
+
+  const handleConfirmDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deleteTarget || deleteConfirmInput !== deleteTarget.name) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteGroup(deleteTarget.id, deleteConfirmInput);
+      const deletedName = deleteTarget.name;
+      const deletedId = deleteTarget.id;
+
+      if (selectedGroup?.id === deletedId) {
+        setSelectedGroup(null);
+        setGroupDetail(null);
+        setIsEditing(false);
+      }
+
+      setDeleteTarget(null);
+      setDeleteConfirmInput('');
+      setPageNotice({
+        type: 'success',
+        text: `Deleted SHG "${deletedName}" and all associated records.`,
+      });
+      onRefresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete SHG.';
+      setDeleteError(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const formatRupees = (val: number = 0) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
 
@@ -395,6 +452,33 @@ export const ShgListPage: React.FC<ShgListPageProps> = ({
   return (
     <>
       <div className="space-y-6 animate-fade-in">
+        {pageNotice && (
+          <div
+            className={`px-4 py-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-3 ${
+              pageNotice.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {pageNotice.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{pageNotice.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPageNotice(null)}
+              className="p-1 rounded-lg hover:bg-black/5 text-current cursor-pointer"
+              aria-label="Dismiss notice"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Top Action & Search Bar */}
         <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100">
@@ -662,13 +746,26 @@ export const ShgListPage: React.FC<ShgListPageProps> = ({
 
                       {/* Actions */}
                       <td className="py-4 px-6 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleInspectGroup(g)}
-                          className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 text-slate-700 font-semibold text-xs transition-colors border border-slate-200 cursor-pointer"
-                        >
-                          Inspect
-                        </button>
+                        <div className="inline-flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleInspectGroup(g)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 text-slate-700 font-semibold text-xs transition-colors border border-slate-200 cursor-pointer"
+                          >
+                            Inspect
+                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteModal(g)}
+                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
+                              title={`Delete ${g.name}`}
+                              aria-label={`Delete ${g.name}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1235,6 +1332,123 @@ export const ShgListPage: React.FC<ShgListPageProps> = ({
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete SHG Verification Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-xs"
+            onClick={handleCloseDeleteModal}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-shg-modal-title"
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+          >
+            <div className="px-6 py-4 bg-rose-50/90 border-b border-rose-200 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-rose-100 text-rose-700 border border-rose-200 shrink-0 mt-0.5">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 id="delete-shg-modal-title" className="text-base font-bold text-slate-900">
+                    Delete SHG Permanently
+                  </h3>
+                  <p className="text-xs text-rose-700 font-medium mt-0.5">
+                    This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleCloseDeleteModal}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
+                aria-label="Close delete dialog"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmDelete} className="p-6 space-y-4">
+              <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/80 text-xs text-slate-700 leading-relaxed space-y-1.5">
+                <p>
+                  All associated data of{' '}
+                  <span className="font-bold text-slate-900">{deleteTarget.name}</span> will be
+                  permanently deleted, including:
+                </p>
+                <ul className="list-disc list-inside text-[11px] text-slate-600 space-y-0.5">
+                  <li>All SHG members and balances</li>
+                  <li>All weekly deposits, loans, and repayments</li>
+                  <li>All ledger entries, loan shapes, and cycles</li>
+                  <li>SHG operator login credentials and access links</li>
+                </ul>
+              </div>
+
+              {deleteError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+
+              <div>
+                <label
+                  htmlFor="delete-shg-confirm-input"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Type{' '}
+                  <span className="font-mono font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 select-all">
+                    {deleteTarget.name}
+                  </span>{' '}
+                  to confirm deletion:
+                </label>
+                <input
+                  id="delete-shg-confirm-input"
+                  type="text"
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={isDeleting}
+                  value={deleteConfirmInput}
+                  onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                  placeholder={deleteTarget.name}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 font-medium focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:outline-hidden disabled:opacity-50"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleCloseDeleteModal}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDeleting || deleteConfirmInput !== deleteTarget.name}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete SHG</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

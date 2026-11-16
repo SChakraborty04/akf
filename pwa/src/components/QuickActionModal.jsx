@@ -40,6 +40,12 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
   } = useData();
 
   const stampValue = groupProfile?.stampValue || 50;
+  const maxStampsPerMember = Number(groupProfile?.maxStampsPerMember || 5);
+  const maxLoanAmount = Number(groupProfile?.maxLoanAmount || 50000);
+  const repaymentRate = Number(
+    groupProfile?.repaymentStampRate ?? groupProfile?.monthlyInterestRate ?? 0.02
+  );
+  const repaymentPctLabel = `${(repaymentRate * 100).toFixed(2).replace(/\.?0+$/, '')}%`;
   const meetingDay = groupProfile?.meetingDay;
 
   const [mode, setMode] = useState(defaultMode);
@@ -119,7 +125,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
   const handleMemberStampChange = (memberId, count) => {
     setMemberStamps((prev) => ({
       ...prev,
-      [memberId]: Math.max(0, Math.min(5, Number(count))),
+      [memberId]: Math.max(0, Math.min(maxStampsPerMember, Number(count))),
     }));
   };
 
@@ -164,7 +170,10 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
   const getShapeRowValue = (shapeId, currentMode) => {
     const def = getShapeDef(shapeId);
     if (currentMode === 'repayment') {
-      return Math.round(Number(def.value || 0) * 0.02);
+      if (def.repaymentValue !== undefined && def.repaymentValue !== null) {
+        return Number(def.repaymentValue);
+      }
+      return Math.round(Number(def.value || 0) * repaymentRate);
     }
     return Number(def.value || 0);
   };
@@ -251,6 +260,10 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
         }
         if (addedStamps.length === 0 || totalStampsValue <= 0) {
           toast.error(t('errAddLoanStamp'));
+          return;
+        }
+        if (totalStampsValue > maxLoanAmount) {
+          toast.error(`Loan amount exceeds group limit of ${formatCurrency(maxLoanAmount)}`);
           return;
         }
       } else if (mode === 'repayment') {
@@ -555,7 +568,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
                                           : 'bg-slate-50 border-slate-300 text-slate-600'
                                       }`}
                                     >
-                                      {[0, 1, 2, 3, 4, 5].map((num) => (
+                                      {[...Array(maxStampsPerMember + 1).keys()].map((num) => (
                                         <option key={num} value={num}>
                                           {num} {num === 1 ? 'stamp' : 'stamps'}
                                         </option>
@@ -885,7 +898,10 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {loanShapes.map((shape) => {
                             const meta = getShapeMeta(shape.symbol || shape.id);
-                            const repVal = Math.round(Number(shape.value || 0) * 0.02);
+                            const repVal =
+                              shape.repaymentValue !== undefined && shape.repaymentValue !== null
+                                ? Number(shape.repaymentValue)
+                                : Math.round(Number(shape.value || 0) * repaymentRate);
                             return (
                               <div
                                 key={shape.id}
@@ -964,10 +980,13 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
                                       className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-slate-800 focus:ring-2 focus:ring-cyan-600 focus:outline-none truncate"
                                     >
                                       {loanShapes.map((s) => {
-                                        const repVal = Math.round(Number(s.value || 0) * 0.02);
+                                        const repVal =
+                                          s.repaymentValue !== undefined && s.repaymentValue !== null
+                                            ? Number(s.repaymentValue)
+                                            : Math.round(Number(s.value || 0) * repaymentRate);
                                         return (
                                           <option key={s.id} value={s.id}>
-                                            {s.name} - {formatCurrency(repVal)} (2% of ₹{s.value})
+                                            {s.name} - {formatCurrency(repVal)} ({repaymentPctLabel} of ₹{s.value})
                                           </option>
                                         );
                                       })}

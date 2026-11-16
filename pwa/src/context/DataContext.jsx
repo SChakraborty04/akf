@@ -328,7 +328,7 @@ export function DataProvider({ children }) {
       memberName: resolvedMemberName,
       principalAmount: loanPrincipal,
       date: loanDate,
-      monthlyInterestRate: 0.02,
+      monthlyInterestRate: Number(data.groupProfile?.monthlyInterestRate ?? 0.02),
       status: 'Active',
       approvalStatus: 'approved',
       stamps: stamps || [],
