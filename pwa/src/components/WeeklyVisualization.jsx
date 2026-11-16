@@ -46,6 +46,11 @@ export default function WeeklyVisualization({
   const maxAmount = Math.max(1, ...weeks.map((w) => Number(w.totalAmount || 0)));
   const activeWeek = weeks.find((w) => w.weekKey === selectedWeekKey);
 
+  const getWeekTitle = (week) =>
+    week.isPreCycle || week.weekNumber == null
+      ? t('preCycleLabel')
+      : `${t('weekLabel')} ${week.weekNumber}`;
+
   const handleBarClick = (week) => {
     const rangeLabel = formatWeekDateRange(week.weekStartYMD, week.weekEndYMD, language);
     if (selectedWeekKey === week.weekKey) {
@@ -53,7 +58,7 @@ export default function WeeklyVisualization({
       toast.success(t('allWeeks'));
     } else {
       onSelectWeek(week.weekKey);
-      toast.success(`${t('weekLabel')} ${week.weekNumber} (${rangeLabel})`);
+      toast.success(`${getWeekTitle(week)} (${rangeLabel})`);
     }
   };
 
@@ -137,7 +142,7 @@ export default function WeeklyVisualization({
 
                     <div className="text-center leading-tight w-full">
                       <span className="block text-[10px] font-extrabold text-slate-900 truncate">
-                        {t('weekLabel')} {week.weekNumber}
+                        {getWeekTitle(week)}
                       </span>
                       <span className="block text-[9px] font-semibold text-slate-500 truncate">
                         {formatShortDayMonth(week.weekStartYMD, language)}
@@ -154,7 +159,7 @@ export default function WeeklyVisualization({
               className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border flex items-center justify-between gap-2 ${palette.pill}`}
             >
               <span className="truncate">
-                {t('showingWeek')}: {t('weekLabel')} {activeWeek.weekNumber} (
+                {t('showingWeek')}: {getWeekTitle(activeWeek)} (
                 {formatWeekDateRange(activeWeek.weekStartYMD, activeWeek.weekEndYMD, language)})
               </span>
               <span className="shrink-0 font-black">

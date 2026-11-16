@@ -221,7 +221,9 @@ export default function MemberDetailModal({ member, onClose }) {
                       <tr key={row.weekKey} className="hover:bg-slate-50/70">
                         <td className="py-2 px-2.5 align-top">
                           <span className="font-extrabold text-slate-900 block whitespace-nowrap">
-                            {t('weekLabel')} {row.weekNumber}
+                            {row.isPreCycle || row.weekNumber == null
+                              ? t('preCycleLabel')
+                              : `${t('weekLabel')} ${row.weekNumber}`}
                           </span>
                           <span className="text-[9px] font-medium text-slate-500 block whitespace-nowrap">
                             {formatWeekDateRange(row.weekStartYMD, row.weekEndYMD, language)}

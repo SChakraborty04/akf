@@ -162,18 +162,7 @@ class ApiClient {
   }
 
   async getGroupDetail(id: string): Promise<any> {
-    try {
-      return await this.request(`/groups/${id}`);
-    } catch {
-      const groups = await this.getGroups();
-      const g = groups.find((grp) => grp.id === id);
-      return {
-        ...(g || { id, name: 'SHG Group' }),
-        members: [],
-        shapes: [],
-        users: [],
-      };
-    }
+    return this.request(`/groups/${id}`);
   }
 
   async createGroup(input: any) {
@@ -183,8 +172,8 @@ class ApiClient {
     });
   }
 
-  async updateGroup(id: string, patch: any) {
-    return this.request(`/master/shg/${id}`, {
+  async updateGroup(id: string, patch: any): Promise<any> {
+    return this.request<any>(`/master/shg/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     });

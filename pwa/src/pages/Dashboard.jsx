@@ -231,7 +231,7 @@ export default function Dashboard() {
               )}
             </span>
           </div>
-          {currentWeekInfo && currentWeekInfo.weekNumber >= 1 && (
+          {currentWeekInfo && !currentWeekInfo.isPreCycle && currentWeekInfo.weekNumber >= 1 && (
             <div className="py-2 flex justify-between items-center gap-2">
               <span className="text-slate-500 font-medium">{t('currentWeekLabel')}:</span>
               <span className="font-bold text-emerald-800 text-right">

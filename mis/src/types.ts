@@ -56,6 +56,10 @@ export interface SHGGroup {
     durationWeeks: number;
     isCurrent: boolean;
   } | null;
+  cycleNo?: number | null;
+  cycleStart?: string | null;
+  cycleEnd?: string | null;
+  durationWeeks?: number | null;
   createdAt: string;
 }
 
@@ -173,6 +177,10 @@ export interface WeeklyPaymentMemberDetail {
   memberName: string;
   hhNo: string;
   weekNo: string;
+  isPreCycle?: boolean;
+  weekStartDate?: string;
+  weekEndDate?: string;
+  weekRangeDisplay?: string;
   date: string;
   displayDate: string;
   totalDeposit: number;
@@ -191,6 +199,10 @@ export interface WeeklyPaymentMemberDetail {
 export interface WeeklyPaymentRow {
   weekNo: string;
   weekIndex: number;
+  isPreCycle?: boolean;
+  weekStartDate?: string;
+  weekEndDate?: string;
+  weekRangeDisplay?: string;
   date: string;
   displayDate: string;
   totalDeposit: number;
@@ -210,6 +222,10 @@ export interface WeeklyPaymentRow {
 
 export interface MemberFinanceHistoryItem {
   weekNo: string;
+  isPreCycle?: boolean;
+  weekStartDate?: string;
+  weekEndDate?: string;
+  weekRangeDisplay?: string;
   date: string;
   displayDate: string;
   totalDeposit: number;

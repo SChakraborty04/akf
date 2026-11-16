@@ -18,6 +18,7 @@ const BADGE_CLASSES = {
 
 export default function WeekSectionHeader({
   weekNumber,
+  isPreCycle = false,
   weekStartYMD,
   weekEndYMD,
   totalAmount,
@@ -26,6 +27,8 @@ export default function WeekSectionHeader({
 }) {
   const { language, t } = useLanguage();
   const rangeStr = formatWeekDateRange(weekStartYMD, weekEndYMD, language);
+  const title =
+    isPreCycle || weekNumber == null ? t('preCycleLabel') : `${t('weekLabel')} ${weekNumber}`;
 
   return (
     <div
@@ -39,7 +42,7 @@ export default function WeekSectionHeader({
             BADGE_CLASSES[theme] || BADGE_CLASSES.emerald
           }`}
         >
-          {t('weekLabel')} {weekNumber}
+          {title}
         </span>
         <div className="flex items-center space-x-1 text-[11px] font-bold truncate">
           <Calendar className="w-3 h-3 opacity-70 shrink-0" />

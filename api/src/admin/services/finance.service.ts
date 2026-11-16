@@ -12,6 +12,8 @@ import {
   repayments,
 } from '../../db/schema';
 import { notFound, unprocessable } from '../../lib/errors';
+import { getCycleWeekInfo } from '../../lib/dates';
+import { getCurrentCycle } from '../../services/group.service';
 
 export type TransactionFilters = {
   state?: string;
@@ -454,6 +456,8 @@ export async function getShgWeeklyFinance(db: Db, groupId: string) {
   const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   if (!group) throw notFound('SHG Group');
 
+  const cycle = await getCurrentCycle(db, groupId);
+
   const groupMembers = await db
     .select({
       id: members.id,
@@ -573,7 +577,13 @@ export async function getShgWeeklyFinance(db: Db, groupId: string) {
   });
 
   const weeks = sortedDates.map((dateStr, idx) => {
-    const weekNo = String(idx + 1).padStart(3, '0');
+    const weekInfo = getCycleWeekInfo(dateStr, cycle?.startDate ?? null, sortedDates);
+    const weekNo =
+      weekInfo.isPreCycle || weekInfo.weekNumber === null
+        ? 'Pre'
+        : String(weekInfo.weekNumber).padStart(3, '0');
+    const weekIndex = weekInfo.isPreCycle || weekInfo.weekNumber === null ? 0 : weekInfo.weekNumber;
+    const weekRangeDisplay = `${formatDisplayDate(weekInfo.weekStartYMD)} – ${formatDisplayDate(weekInfo.weekEndYMD)}`;
     const displayDate = formatDisplayDate(dateStr);
     const dep = depositsByDate.get(dateStr);
     const depItems = dep ? itemsByDepositId.get(dep.id) ?? [] : [];
@@ -635,6 +645,10 @@ export async function getShgWeeklyFinance(db: Db, groupId: string) {
 
       const memberRecord = {
         weekNo,
+        isPreCycle: weekInfo.isPreCycle,
+        weekStartDate: weekInfo.weekStartYMD,
+        weekEndDate: weekInfo.weekEndYMD,
+        weekRangeDisplay,
         date: dateStr,
         displayDate,
         memberId: m.id,
@@ -655,6 +669,10 @@ export async function getShgWeeklyFinance(db: Db, groupId: string) {
 
       memberHistories[m.id].push({
         weekNo,
+        isPreCycle: weekInfo.isPreCycle,
+        weekStartDate: weekInfo.weekStartYMD,
+        weekEndDate: weekInfo.weekEndYMD,
+        weekRangeDisplay,
         date: dateStr,
         displayDate,
         totalDeposit: memberDeposit,
@@ -677,7 +695,11 @@ export async function getShgWeeklyFinance(db: Db, groupId: string) {
 
     return {
       weekNo,
-      weekIndex: idx + 1,
+      weekIndex,
+      isPreCycle: weekInfo.isPreCycle,
+      weekStartDate: weekInfo.weekStartYMD,
+      weekEndDate: weekInfo.weekEndYMD,
+      weekRangeDisplay,
       date: dateStr,
       displayDate,
       totalDeposit: weekTotalDeposit,
@@ -711,6 +733,10 @@ export async function getShgWeeklyFinance(db: Db, groupId: string) {
       maxStampsPerMember: group.maxStampsPerMember,
       maxLoanAmount: group.maxLoanAmount,
       approvalRequired: group.approvalRequired,
+      cycleNo: cycle?.cycleNo ?? null,
+      cycleStart: cycle?.startDate ?? null,
+      cycleEnd: cycle?.endDate ?? null,
+      durationWeeks: cycle?.durationWeeks ?? null,
     },
     totalMembers,
     currentBoxAmount: runningBoxAmount,

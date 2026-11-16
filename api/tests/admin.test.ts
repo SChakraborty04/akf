@@ -192,6 +192,61 @@ describe('Admin MIS API Routes', () => {
     expect(res.json.data.errors.length).toBe(0);
   });
 
+  test('PATCH /admin/master/shg/:id updates rules and configured loan shapes', async () => {
+    const { request, base } = await createTestApp();
+
+    const loginRes = await request('/admin/auth/login', {
+      method: 'POST',
+      json: { username: 'admin', password: PASSWORD },
+    });
+    const adminToken = loginRes.json.data.accessToken;
+
+    const detailRes = await request(`/admin/groups/${base.groupId}`, { token: adminToken });
+    expect(detailRes.status).toBe(200);
+    const existingShapes = detailRes.json.data.shapes;
+    expect(existingShapes.length).toBeGreaterThanOrEqual(5);
+
+    const updatedShapesPayload = existingShapes.map((s: any, idx: number) => ({
+      id: s.id,
+      code: s.code,
+      name: idx === 0 ? 'Pentagon Plus' : s.name,
+      value: idx === 0 ? 750 : s.value,
+      color: s.color,
+      sortOrder: idx + 1,
+      isActive: true,
+    }));
+    updatedShapesPayload.push({
+      name: 'Diamond',
+      value: 15000,
+      color: '#db2777',
+      sortOrder: updatedShapesPayload.length + 1,
+      isActive: true,
+    });
+
+    const patchRes = await request(`/admin/master/shg/${base.groupId}`, {
+      method: 'PATCH',
+      token: adminToken,
+      json: {
+        stampValue: 100,
+        maxStampsPerMember: 6,
+        maxLoanAmount: 75000,
+        monthlyInterestRate: '0.0150',
+        repaymentStampRate: '0.0150',
+        approvalRequired: false,
+        shapes: updatedShapesPayload,
+      },
+    });
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.json.data.stampValue).toBe(100);
+    expect(patchRes.json.data.maxStampsPerMember).toBe(6);
+    expect(patchRes.json.data.maxLoanAmount).toBe(75000);
+    expect(Number(patchRes.json.data.monthlyInterestRate)).toBeCloseTo(0.015, 4);
+    expect(patchRes.json.data.approvalRequired).toBe(false);
+    expect(patchRes.json.data.shapes.length).toBe(existingShapes.length + 1);
+    expect(patchRes.json.data.shapes.find((s: any) => s.code === 'pentagon')?.value).toBe(750);
+    expect(patchRes.json.data.shapes.some((s: any) => s.name === 'Diamond' && s.value === 15000)).toBe(true);
+  });
+
   test('Finance transactions filter by approval status and approve button works', async () => {
     const { request, token } = await createTestApp();
     const opToken = await token();
@@ -462,7 +517,9 @@ describe('Admin MIS API Routes', () => {
     expect(weeklyRes.json.data.weeks.length).toBeGreaterThanOrEqual(1);
 
     const week1 = weeklyRes.json.data.weeks[0];
-    expect(week1.weekNo).toBe('001');
+    expect(week1.weekNo).toBe('013');
+    expect(week1.weekStartDate).toBe('2026-03-30');
+    expect(week1.weekEndDate).toBe('2026-04-05');
     expect(week1.date).toBe('2026-04-03');
     expect(week1.displayDate).toBe('03-04-2026');
     expect(week1.totalDeposit).toBe(500);

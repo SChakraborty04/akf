@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db/client';
 import {
   cycles,
@@ -222,7 +222,11 @@ export async function getAdminGroupDetail(db: Db, groupId: string) {
 
   const [memberList, shapeList, cycleList, userList] = await Promise.all([
     db.select().from(members).where(eq(members.groupId, groupId)).orderBy(members.hhNo),
-    db.select().from(loanShapes).where(eq(loanShapes.groupId, groupId)).orderBy(loanShapes.sortOrder),
+    db
+      .select()
+      .from(loanShapes)
+      .where(eq(loanShapes.groupId, groupId))
+      .orderBy(asc(loanShapes.sortOrder), asc(loanShapes.value)),
     db.select().from(cycles).where(eq(cycles.groupId, groupId)).orderBy(desc(cycles.cycleNo)),
     db
       .select({
@@ -324,8 +328,18 @@ export async function createAdminGroup(tx: Db, input: CreateShgInput) {
   return { group, operator: operatorUser };
 }
 
+export type UpdateShgShapeInput = {
+  id?: string;
+  code?: string;
+  name: string;
+  value: number;
+  color?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+};
+
 /**
- * Updates an SHG profile, location, or validation settings.
+ * Updates an SHG profile, location, validation rules, and optional loan shapes.
  */
 export async function updateAdminGroup(
   tx: Db,
@@ -347,11 +361,162 @@ export async function updateAdminGroup(
     repaymentStampRate: string;
     meetingDay: string;
     isActive: boolean;
+    shapes: UpdateShgShapeInput[];
   }>,
 ) {
-  const [updated] = await tx.update(groups).set(patch).where(eq(groups.id, groupId)).returning();
-  if (!updated) throw notFound('Group');
-  return updated;
+  const [existingGroup] = await tx.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+  if (!existingGroup) throw notFound('Group');
+
+  const now = new Date();
+  const groupUpdates: Record<string, any> = { updatedAt: now };
+
+  if (patch.name !== undefined) {
+    const trimmed = String(patch.name).trim();
+    if (!trimmed) throw unprocessable('SHG name cannot be empty', 'INVALID_NAME');
+    groupUpdates.name = trimmed;
+  }
+  if (patch.hindiName !== undefined) groupUpdates.hindiName = patch.hindiName ? String(patch.hindiName).trim() : null;
+  if (patch.address !== undefined) groupUpdates.address = patch.address ? String(patch.address).trim() : null;
+  if (patch.state !== undefined) groupUpdates.state = String(patch.state).trim();
+  if (patch.district !== undefined) groupUpdates.district = String(patch.district).trim();
+  if (patch.block !== undefined) groupUpdates.block = String(patch.block).trim();
+  if (patch.panchayat !== undefined) groupUpdates.panchayat = String(patch.panchayat).trim();
+  if (patch.village !== undefined) groupUpdates.village = patch.village ? String(patch.village).trim() : null;
+
+  if (patch.stampValue !== undefined) {
+    const val = Math.round(Number(patch.stampValue));
+    if (!Number.isFinite(val) || val <= 0) {
+      throw unprocessable('Savings stamp value must be greater than 0', 'INVALID_STAMP_VALUE');
+    }
+    groupUpdates.stampValue = val;
+  }
+
+  if (patch.maxStampsPerMember !== undefined) {
+    const val = Math.round(Number(patch.maxStampsPerMember));
+    if (!Number.isFinite(val) || val <= 0) {
+      throw unprocessable('Max stamps per member must be at least 1', 'INVALID_MAX_STAMPS');
+    }
+    groupUpdates.maxStampsPerMember = val;
+  }
+
+  if (patch.maxLoanAmount !== undefined) {
+    const val = Math.round(Number(patch.maxLoanAmount));
+    if (!Number.isFinite(val) || val <= 0) {
+      throw unprocessable('Max loan limit must be greater than 0', 'INVALID_MAX_LOAN');
+    }
+    groupUpdates.maxLoanAmount = val;
+  }
+
+  if (patch.approvalRequired !== undefined) {
+    groupUpdates.approvalRequired = Boolean(patch.approvalRequired);
+  }
+
+  if (patch.monthlyInterestRate !== undefined) {
+    const num = Number(patch.monthlyInterestRate);
+    if (!Number.isFinite(num) || num < 0) {
+      throw unprocessable('Monthly interest rate must be 0 or greater', 'INVALID_INTEREST_RATE');
+    }
+    groupUpdates.monthlyInterestRate = num.toFixed(4);
+  }
+
+  if (patch.repaymentStampRate !== undefined) {
+    const num = Number(patch.repaymentStampRate);
+    if (!Number.isFinite(num) || num < 0) {
+      throw unprocessable('Repayment stamp rate must be 0 or greater', 'INVALID_REPAYMENT_RATE');
+    }
+    groupUpdates.repaymentStampRate = num.toFixed(4);
+  }
+
+  if (patch.meetingDay !== undefined) {
+    groupUpdates.meetingDay = patch.meetingDay ? String(patch.meetingDay).trim() : null;
+  }
+
+  if (patch.isActive !== undefined) {
+    groupUpdates.isActive = Boolean(patch.isActive);
+  }
+
+  const [updated] = await tx.update(groups).set(groupUpdates).where(eq(groups.id, groupId)).returning();
+
+  // Optional: update / add configured loan shapes atomically
+  let updatedShapes;
+  if (Array.isArray(patch.shapes)) {
+    const activeCount = patch.shapes.filter((s) => s.isActive !== false).length;
+    if (patch.shapes.length === 0 || activeCount === 0) {
+      throw unprocessable('At least one active loan shape is required', 'INVALID_SHAPES');
+    }
+
+    const existingShapes = await tx
+      .select()
+      .from(loanShapes)
+      .where(eq(loanShapes.groupId, groupId));
+
+    const existingById = new Map(existingShapes.map((s) => [s.id, s]));
+    const existingByCode = new Map(existingShapes.map((s) => [s.code.toLowerCase(), s]));
+    const usedCodes = new Set(existingShapes.map((s) => s.code.toLowerCase()));
+
+    for (let idx = 0; idx < patch.shapes.length; idx++) {
+      const s = patch.shapes[idx];
+      const name = String(s.name || '').trim();
+      const value = Math.round(Number(s.value));
+      if (!name) {
+        throw unprocessable(`Shape #${idx + 1} name is required`, 'INVALID_SHAPE_NAME');
+      }
+      if (!Number.isFinite(value) || value <= 0) {
+        throw unprocessable(`Shape "${name}" value must be greater than 0`, 'INVALID_SHAPE_VALUE');
+      }
+
+      const sortOrder = s.sortOrder !== undefined ? Number(s.sortOrder) : idx + 1;
+      const color = s.color ? String(s.color).trim() : '#0d9488';
+      const isActive = s.isActive !== false;
+
+      const match =
+        (s.id && existingById.get(s.id)) ||
+        (s.code && existingByCode.get(String(s.code).trim().toLowerCase()));
+
+      if (match) {
+        await tx
+          .update(loanShapes)
+          .set({
+            name,
+            value,
+            color,
+            sortOrder,
+            isActive,
+            updatedAt: now,
+          })
+          .where(and(eq(loanShapes.id, match.id), eq(loanShapes.groupId, groupId)));
+      } else {
+        const baseSlug =
+          (s.code ? String(s.code).trim().toLowerCase() : name.toLowerCase())
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '') || `shape-${idx + 1}`;
+        let code = baseSlug;
+        let suffix = 2;
+        while (usedCodes.has(code)) {
+          code = `${baseSlug}-${suffix++}`;
+        }
+        usedCodes.add(code);
+
+        await tx.insert(loanShapes).values({
+          groupId,
+          code,
+          name,
+          value,
+          color,
+          sortOrder,
+          isActive,
+        });
+      }
+    }
+
+    updatedShapes = await tx
+      .select()
+      .from(loanShapes)
+      .where(eq(loanShapes.groupId, groupId))
+      .orderBy(asc(loanShapes.sortOrder), asc(loanShapes.value));
+  }
+
+  return updatedShapes ? { ...updated, shapes: updatedShapes } : updated;
 }
 
 /**

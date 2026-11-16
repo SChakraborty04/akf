@@ -183,6 +183,7 @@ export default function Loans() {
             <div key={week.weekKey} className="space-y-2">
               <WeekSectionHeader
                 weekNumber={week.weekNumber}
+                isPreCycle={week.isPreCycle}
                 weekStartYMD={week.weekStartYMD}
                 weekEndYMD={week.weekEndYMD}
                 totalAmount={week.totalAmount}

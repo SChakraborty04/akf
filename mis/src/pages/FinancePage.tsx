@@ -125,6 +125,9 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
     return dStr;
   };
 
+  const formatWeekLabel = (item: { weekNo: string; isPreCycle?: boolean }) =>
+    item.isPreCycle || item.weekNo === 'Pre' ? 'Pre-Cycle' : `Week ${item.weekNo}`;
+
   // Cascading Location Logic for Filters
   const availableDistricts = useMemo(() => {
     if (!selectedState) return locationHierarchy.districts;
@@ -291,7 +294,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
       });
 
       setActionMessage({
-        text: `✓ ${member.memberName} verified and approved for Week ${selectedWeek.weekNo}.`,
+        text: `✓ ${member.memberName} verified and approved for ${formatWeekLabel(selectedWeek)}.`,
         type: 'success',
       });
       if (onRefreshData) onRefreshData();
@@ -336,7 +339,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
       });
 
       setActionMessage({
-        text: `✓ All ${selectedWeek.totalCount} member transactions approved for Week ${selectedWeek.weekNo}.`,
+        text: `✓ All ${selectedWeek.totalCount} member transactions approved for ${formatWeekLabel(selectedWeek)}.`,
         type: 'success',
       });
       if (onRefreshData) onRefreshData();
@@ -607,7 +610,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                       selectedWeek && !selectedMember ? 'text-emerald-700' : 'text-slate-500'
                     }`}
                   >
-                    Week {selectedWeek.weekNo} ({selectedWeek.displayDate})
+                    {formatWeekLabel(selectedWeek)} ({selectedWeek.displayDate})
                   </button>
                 </>
               )}
@@ -1002,7 +1005,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                    <p className="text-xs text-slate-500 mt-1 flex items-center flex-wrap gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-emerald-600" />
                       <span>
                         {selectedShg.village ? `${selectedShg.village}, ` : ''}
@@ -1012,6 +1015,15 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                       <span>Meeting Day: {selectedShg.meetingDay || 'Weekly'}</span>
                       <span className="text-slate-300">•</span>
                       <span>₹{selectedShg.stampValue} / Stamp</span>
+                      {weeklyFinanceData?.shg?.cycleStart && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <span>
+                            Cycle #{weeklyFinanceData.shg.cycleNo ?? 1} ({formatDisplayDate(weeklyFinanceData.shg.cycleStart)}
+                            {weeklyFinanceData.shg.durationWeeks ? ` • ${weeklyFinanceData.shg.durationWeeks} Weeks` : ''})
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1099,9 +1111,9 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                               onClick={() => handleSelectWeek(week)}
                               className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                             >
-                              <td className="py-3.5 px-4 font-mono font-bold text-emerald-800">
+                              <td className="py-3.5 px-4 font-mono font-bold text-emerald-800 whitespace-nowrap">
                                 <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
-                                  {week.weekNo}
+                                  {week.isPreCycle || week.weekNo === 'Pre' ? 'Pre-Cycle' : `Wk ${week.weekNo}`}
                                 </span>
                               </td>
                               <td className="py-3.5 px-4 font-mono text-slate-700 whitespace-nowrap">
@@ -1113,6 +1125,11 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                                     </span>
                                   )}
                                 </div>
+                                {week.weekRangeDisplay && (
+                                  <span className="block text-[10px] text-slate-400 font-sans mt-0.5">
+                                    Mon–Sun: {week.weekRangeDisplay}
+                                  </span>
+                                )}
                               </td>
                               <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
                                 {formatRupees(week.totalDeposit)}
@@ -1182,12 +1199,17 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
               {/* Week Header Summary Banner */}
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="px-3 py-1 rounded-xl bg-emerald-600 text-white font-black text-sm font-mono">
-                      Week {selectedWeek.weekNo}
+                      {formatWeekLabel(selectedWeek)}
                     </span>
                     <h2 className="text-lg font-bold text-slate-900">
                       Weekly Meeting: {selectedWeek.displayDate}
+                      {selectedWeek.weekRangeDisplay && (
+                        <span className="text-xs font-semibold text-slate-500 ml-2">
+                          ({selectedWeek.weekRangeDisplay})
+                        </span>
+                      )}
                     </h2>
                     {selectedWeek.isCurrentWeek && (
                       <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-900 text-xs font-black">
@@ -1246,7 +1268,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                 <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50">
                   <div>
                     <h3 className="font-bold text-slate-900 text-sm">
-                      Member-wise Payments, Savings & Loans for Week {selectedWeek.weekNo}
+                      Member-wise Payments, Savings & Loans for {formatWeekLabel(selectedWeek)}
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Current week transactions are editable and approvable per member. Click member name to view full history.
@@ -1293,8 +1315,17 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                                 !isApproved ? 'bg-amber-50/30' : ''
                               }`}
                             >
-                              <td className="py-3.5 px-4 font-mono font-bold text-slate-500">{m.weekNo}</td>
-                              <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap">{m.displayDate}</td>
+                              <td className="py-3.5 px-4 font-mono font-bold text-slate-500 whitespace-nowrap">
+                                {m.isPreCycle || m.weekNo === 'Pre' ? 'Pre-Cycle' : `Wk ${m.weekNo}`}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap">
+                                <span>{m.displayDate}</span>
+                                {m.weekRangeDisplay && (
+                                  <span className="block text-[10px] text-slate-400 font-sans mt-0.5">
+                                    Mon–Sun: {m.weekRangeDisplay}
+                                  </span>
+                                )}
+                              </td>
                               <td className="py-3.5 px-4">
                                 <button
                                   onClick={() => handleSelectMember(m)}
@@ -1468,8 +1499,17 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {weeklyFinanceData.memberHistories[selectedMember.memberId].map((h, i) => (
                           <tr key={h.weekNo + h.date + i} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3.5 px-4 font-mono font-bold text-emerald-800">{h.weekNo}</td>
-                            <td className="py-3.5 px-4 font-mono text-slate-700 whitespace-nowrap">{h.displayDate}</td>
+                            <td className="py-3.5 px-4 font-mono font-bold text-emerald-800 whitespace-nowrap">
+                              {h.isPreCycle || h.weekNo === 'Pre' ? 'Pre-Cycle' : `Wk ${h.weekNo}`}
+                            </td>
+                            <td className="py-3.5 px-4 font-mono text-slate-700 whitespace-nowrap">
+                              <span>{h.displayDate}</span>
+                              {h.weekRangeDisplay && (
+                                <span className="block text-[10px] text-slate-400 font-sans mt-0.5">
+                                  Mon–Sun: {h.weekRangeDisplay}
+                                </span>
+                              )}
+                            </td>
                             <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
                               {formatRupees(h.totalDeposit)}
                             </td>
@@ -1711,7 +1751,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ locationHierarchy, onR
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">Edit Member Transaction</h3>
                   <p className="text-xs text-slate-500">
-                    Week {selectedWeek.weekNo} ({selectedWeek.displayDate}) • {selectedShg.name}
+                    {formatWeekLabel(selectedWeek)} ({selectedWeek.displayDate}) • {selectedShg.name}
                   </p>
                 </div>
               </div>

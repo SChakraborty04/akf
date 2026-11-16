@@ -175,12 +175,23 @@ export function getMondayOfWeekYMD(ymd) {
 }
 
 /**
- * Resolves the Week-1 start anchor date: prefers group cycleStart,
- * otherwise Monday of the earliest provided record date (or today's Monday).
+ * Returns the Monday ('YYYY-MM-DD') on or after `ymd`.
+ * For example, if cycleStart is Thu 2026-01-01, Week 1 starts Mon 2026-01-05.
+ */
+export function getFirstMondayOnOrAfterYMD(ymd) {
+  const dt = parseYMD(ymd);
+  if (!dt) return getMondayOfWeekYMD(getLocalTodayYMD());
+  const offset = (1 - dt.getDay() + 7) % 7;
+  return addDaysYMD(ymd, offset);
+}
+
+/**
+ * Resolves the Week-1 Monday anchor date:
+ * prefers first Monday on/after group cycleStart, otherwise Monday of the earliest record date.
  */
 export function resolveCycleAnchorDate(cycleStart, fallbackDates = []) {
   if (parseYMD(cycleStart)) {
-    return cycleStart;
+    return getFirstMondayOnOrAfterYMD(cycleStart);
   }
   const validDates = fallbackDates.filter((d) => Boolean(parseYMD(d))).sort();
   if (validDates.length > 0) {
@@ -190,20 +201,31 @@ export function resolveCycleAnchorDate(cycleStart, fallbackDates = []) {
 }
 
 /**
- * Computes cycle week number and date range for a given 'YYYY-MM-DD' date.
+ * Computes Monday-aligned cycle week number and date range for a given 'YYYY-MM-DD' date.
+ * Never produces negative week numbers; dates prior to Week 1 Monday are marked isPreCycle.
  */
 export function getWeekInfoForDate(ymd, cycleStart, fallbackDates = []) {
-  const anchor = resolveCycleAnchorDate(cycleStart, fallbackDates);
-  const safeYmd = parseYMD(ymd) ? ymd : anchor;
-  const diff = diffDaysYMD(safeYmd, anchor);
-  const zeroBasedWeek = Math.floor(diff / 7);
-  const weekNumber = zeroBasedWeek >= 0 ? zeroBasedWeek + 1 : zeroBasedWeek;
-  const weekStartYMD = addDaysYMD(anchor, zeroBasedWeek * 7);
+  const week1Monday = resolveCycleAnchorDate(cycleStart, fallbackDates);
+  const safeYmd = parseYMD(ymd) ? ymd : week1Monday;
+  const weekStartYMD = getMondayOfWeekYMD(safeYmd);
   const weekEndYMD = addDaysYMD(weekStartYMD, 6);
+  const diff = diffDaysYMD(weekStartYMD, week1Monday);
 
+  if (diff < 0) {
+    return {
+      weekKey: weekStartYMD,
+      weekNumber: null,
+      isPreCycle: true,
+      weekStartYMD,
+      weekEndYMD,
+    };
+  }
+
+  const weekNumber = Math.floor(diff / 7) + 1;
   return {
     weekKey: weekStartYMD,
     weekNumber,
+    isPreCycle: false,
     weekStartYMD,
     weekEndYMD,
   };

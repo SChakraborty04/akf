@@ -197,14 +197,10 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
     toast.success(t('stampRemoved'));
   };
 
-  const handleSwitchMode = (nextMode, label) => {
-    if (mode === nextMode) {
-      toast.info(`${label}`);
-      return;
-    }
+  const handleSwitchMode = (nextMode) => {
+    if (mode === nextMode) return;
     setMode(nextMode);
     setAddedStamps([]);
-    toast.success(`${t('switchedTab')}: ${label}`);
   };
 
   const handleCancelClose = () => {
@@ -380,7 +376,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
           <LoadingButton
             type="button"
             minLoaderMs={100}
-            onClick={() => handleSwitchMode('deposit', t('navDeposits'))}
+            onClick={() => handleSwitchMode('deposit')}
             className={`py-2 px-1 rounded-xl transition-all flex items-center justify-center space-x-1 cursor-pointer ${
               mode === 'deposit'
                 ? 'bg-white text-emerald-800 shadow-xs font-bold'
@@ -394,7 +390,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
           <LoadingButton
             type="button"
             minLoaderMs={100}
-            onClick={() => handleSwitchMode('loan', t('navLoans'))}
+            onClick={() => handleSwitchMode('loan')}
             className={`py-2 px-1 rounded-xl transition-all flex items-center justify-center space-x-1 cursor-pointer ${
               mode === 'loan'
                 ? 'bg-white text-amber-800 shadow-xs font-bold'
@@ -408,7 +404,7 @@ export default function QuickActionModal({ isOpen, onClose, defaultMode = 'depos
           <LoadingButton
             type="button"
             minLoaderMs={100}
-            onClick={() => handleSwitchMode('repayment', t('navRepayments'))}
+            onClick={() => handleSwitchMode('repayment')}
             className={`py-2 px-1 rounded-xl transition-all flex items-center justify-center space-x-1 cursor-pointer ${
               mode === 'repayment'
                 ? 'bg-white text-cyan-800 shadow-xs font-bold'

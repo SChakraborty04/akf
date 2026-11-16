@@ -221,7 +221,8 @@ export const translations = {
     totalRow: "Total",
     entriesCount: "entries",
     entryCount: "entry",
-    currentWeekLabel: "Current Week"
+    currentWeekLabel: "Current Week",
+    preCycleLabel: "Pre-Cycle"
   },
   hi: {
     // App & Header
@@ -445,6 +446,7 @@ export const translations = {
     totalRow: "कुल",
     entriesCount: "प्रविष्टियाँ",
     entryCount: "प्रविष्टि",
-    currentWeekLabel: "वर्तमान सप्ताह"
+    currentWeekLabel: "वर्तमान सप्ताह",
+    preCycleLabel: "चक्र-पूर्व"
   }
 };
