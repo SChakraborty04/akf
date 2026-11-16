@@ -1,7 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { processRepaymentWaterfall } from '../utils/calculations';
+import { getLocalTodayYMD } from '../utils/dates';
 import { api } from '../api/client';
 import { useAuth } from './AuthContext';
+
+const isNetworkFailure = (err) =>
+  !err?.status &&
+  (err?.message?.includes('Failed to fetch') ||
+    err?.message?.includes('NetworkError') ||
+    !navigator.onLine ||
+    err instanceof TypeError);
 
 const DataContext = createContext();
 
@@ -105,12 +113,12 @@ export function DataProvider({ children }) {
 
   // Synchronize authoritative state from API
   const syncSnapshot = useCallback(async () => {
-    if (!api.getToken()) return;
+    if (!api.getToken()) return { success: false, error: 'Not authenticated' };
 
     setIsSyncing(true);
     try {
       const snapshot = await api.getSnapshot();
-      if (!snapshot) return;
+      if (!snapshot) return { success: false, error: 'Empty snapshot from server' };
 
       const normalizedMembers = snapshot.members || [];
 
@@ -163,8 +171,10 @@ export function DataProvider({ children }) {
 
       setData(freshData);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(freshData));
+      return { success: true };
     } catch (err) {
       console.warn('[PWA Data] Server sync skipped or offline, using cached store:', err);
+      return { success: false, error: err?.message || 'Failed to sync from server' };
     } finally {
       setIsSyncing(false);
     }
@@ -183,7 +193,7 @@ export function DataProvider({ children }) {
 
   // 1. Add Group/Member Deposit
   const addDeposit = async ({ date, note, memberDeposits, totalStamps, totalAmount, amount }) => {
-    const depositDate = date || new Date().toISOString().split('T')[0];
+    const depositDate = date || getLocalTodayYMD();
     const finalAmount = Number(totalAmount ?? amount ?? 0);
     const finalStamps = Number(totalStamps ?? 0);
     const depositNote = note || 'Meeting Member Savings';
@@ -210,9 +220,12 @@ export function DataProvider({ children }) {
         if (res) {
           // Re-sync snapshot to pull authoritative server IDs and ledger
           await syncSnapshot();
-          return res;
+          return { success: true, isOffline: false, data: res };
         }
       } catch (err) {
+        if (!isNetworkFailure(err)) {
+          return { success: false, error: err?.message || 'Failed to record deposit' };
+        }
         console.warn('[PWA Data] Remote deposit failed, executing offline fallback:', err);
       }
     }
@@ -261,12 +274,12 @@ export function DataProvider({ children }) {
       ledger: [...newLedgerEntries, ...prev.ledger],
     }));
 
-    return newDeposit;
+    return { success: true, isOffline: Boolean(api.getToken()), data: newDeposit };
   };
 
   // 2. Create Member Loan
   const createLoan = async ({ memberId, memberName, principalAmount, date, stamps }) => {
-    const loanDate = date || new Date().toISOString().split('T')[0];
+    const loanDate = date || getLocalTodayYMD();
     const loanPrincipal = Number(principalAmount);
     const member = data.members.find((m) => m.id === memberId);
     const resolvedMemberName = memberName || member?.name || 'Member';
@@ -286,9 +299,12 @@ export function DataProvider({ children }) {
         const res = await api.createLoan(payload);
         if (res) {
           await syncSnapshot();
-          return res;
+          return { success: true, isOffline: false, data: res };
         }
       } catch (err) {
+        if (!isNetworkFailure(err)) {
+          return { success: false, error: err?.message || 'Failed to disburse loan' };
+        }
         console.warn('[PWA Data] Remote loan disbursal failed, executing offline fallback:', err);
       }
     }
@@ -335,14 +351,16 @@ export function DataProvider({ children }) {
       ledger: [newLedgerEntry, ...prev.ledger],
     }));
 
-    return newLoan;
+    return { success: true, isOffline: Boolean(api.getToken()), data: newLoan };
   };
 
   // 3. Add Loan Repayment
   const addRepayment = async ({ loanId, memberId, memberName, amountPaid, date, stamps }) => {
-    const repaymentDate = date || new Date().toISOString().split('T')[0];
+    const repaymentDate = date || getLocalTodayYMD();
     const targetLoan = data.loans.find((l) => l.id === loanId);
-    if (!targetLoan) return;
+    if (!targetLoan) {
+      return { success: false, error: 'Target loan not found' };
+    }
 
     const resolvedMemberId = memberId || targetLoan.memberId;
     const resolvedMember = data.members.find((m) => m.id === resolvedMemberId);
@@ -368,9 +386,12 @@ export function DataProvider({ children }) {
         const res = await api.createRepayment(payload);
         if (res) {
           await syncSnapshot();
-          return res;
+          return { success: true, isOffline: false, data: res };
         }
       } catch (err) {
+        if (!isNetworkFailure(err)) {
+          return { success: false, error: err?.message || 'Failed to record repayment' };
+        }
         console.warn('[PWA Data] Remote repayment failed, executing offline fallback:', err);
       }
     }
@@ -427,17 +448,18 @@ export function DataProvider({ children }) {
       ledger: [newLedgerEntry, ...prev.ledger],
     }));
 
-    return newRepayment;
+    return { success: true, isOffline: Boolean(api.getToken()), data: newRepayment };
   };
 
   // 4. Reset Data / Re-sync from server
   const resetData = async () => {
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
     if (api.getToken()) {
-      await syncSnapshot();
-    } else {
-      setData(EMPTY_GROUP_DATA);
+      const result = await syncSnapshot();
+      return result;
     }
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    setData(EMPTY_GROUP_DATA);
+    return { success: true };
   };
 
   return (

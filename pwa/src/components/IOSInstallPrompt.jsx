@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Share, PlusSquare, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
+import LoadingButton from './LoadingButton';
 
 export default function IOSInstallPrompt() {
   const { t } = useLanguage();
+  const toast = useToast();
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    // Detect iOS
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    // Check if running in standalone mode (already installed as PWA)
-    const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-    // Check if dismissed in this session
+    const isStandalone =
+      window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
     const isDismissed = sessionStorage.getItem('ios_pwa_prompt_dismissed') === 'true';
 
     if (isIOS && !isStandalone && !isDismissed) {
@@ -22,6 +23,7 @@ export default function IOSInstallPrompt() {
   const dismissPrompt = () => {
     sessionStorage.setItem('ios_pwa_prompt_dismissed', 'true');
     setShowPrompt(false);
+    toast.info(t('promptDismissed'));
   };
 
   if (!showPrompt) return null;
@@ -45,13 +47,14 @@ export default function IOSInstallPrompt() {
             </span>
           </p>
         </div>
-        <button
+        <LoadingButton
+          iconOnly
           onClick={dismissPrompt}
-          className="text-emerald-300 hover:text-white p-1 rounded-lg hover:bg-emerald-800/50 transition-colors"
+          className="text-emerald-300 hover:text-white p-1 rounded-lg hover:bg-emerald-800/50 transition-colors flex items-center justify-center cursor-pointer"
           aria-label="Close prompt"
         >
           <X className="w-4 h-4" />
-        </button>
+        </LoadingButton>
       </div>
     </div>
   );

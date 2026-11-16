@@ -1,19 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { PiggyBank, Plus, Calendar, ChevronDown, ChevronUp, Users, Coins, User } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useData } from '../context/DataContext';
 import { filterByDateRange } from '../utils/calculations';
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { groupItemsByWeek } from '../utils/dates';
 import DateRangeFilter from '../components/DateRangeFilter';
 import QuickActionModal from '../components/QuickActionModal';
+import LoadingButton from '../components/LoadingButton';
+import WeeklyVisualization from '../components/WeeklyVisualization';
+import WeekSectionHeader from '../components/WeekSectionHeader';
+import { useToast } from '../context/ToastContext';
 
 export default function Deposits() {
   const { language, t } = useLanguage();
-  const { deposits, members = [] } = useData();
+  const { deposits, loans = [], repayments = [], groupProfile = {}, members = [] } = useData();
+  const toast = useToast();
 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState('');
+  const [selectedWeekKey, setSelectedWeekKey] = useState(null);
   const [expandedDepositId, setExpandedDepositId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -29,14 +36,44 @@ export default function Deposits() {
       })
     : dateFiltered;
 
-  // Calculate filtered total
-  const totalFilteredDeposits = filteredDeposits.reduce((sum, d) => {
+  const getDepositAmount = (d) => {
     if (selectedMemberFilter && d.memberDeposits) {
       const memDep = d.memberDeposits.find((m) => m.memberId === selectedMemberFilter);
-      return sum + Number(memDep?.amount || 0);
+      return Number(memDep?.amount || 0);
     }
-    return sum + Number(d.amount || 0);
-  }, 0);
+    return Number(d.amount || 0);
+  };
+
+  // 3. Weekly grouping for chart & list
+  const fallbackDates = useMemo(
+    () => [
+      ...deposits.map((d) => d.date),
+      ...loans.map((l) => l.date),
+      ...repayments.map((r) => r.date),
+    ],
+    [deposits, loans, repayments]
+  );
+
+  const { chartWeeks, listWeeks } = useMemo(
+    () =>
+      groupItemsByWeek(filteredDeposits, {
+        cycleStart: groupProfile?.cycleStart,
+        fallbackDates,
+        getDate: (d) => d.date,
+        getAmount: getDepositAmount,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredDeposits, groupProfile?.cycleStart, fallbackDates, selectedMemberFilter]
+  );
+
+  const visibleWeeks = selectedWeekKey
+    ? listWeeks.filter((w) => w.weekKey === selectedWeekKey)
+    : listWeeks;
+
+  const totalFilteredDeposits = (selectedWeekKey
+    ? visibleWeeks.flatMap((w) => w.items)
+    : filteredDeposits
+  ).reduce((sum, d) => sum + getDepositAmount(d), 0);
 
   const toggleExpand = (id) => {
     setExpandedDepositId((prev) => (prev === id ? null : id));
@@ -64,6 +101,7 @@ export default function Deposits() {
         onClear={() => {
           setStartDate('');
           setEndDate('');
+          setSelectedWeekKey(null);
         }}
       />
 
@@ -75,8 +113,11 @@ export default function Deposits() {
         </label>
         <select
           value={selectedMemberFilter}
-          onChange={(e) => setSelectedMemberFilter(e.target.value)}
-          className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+          onChange={(e) => {
+            setSelectedMemberFilter(e.target.value);
+            setSelectedWeekKey(null);
+          }}
+          className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-600 focus:outline-none min-w-0"
         >
           <option value="">
             {members.length === 0 ? t('noMembersPrompt') : `${t('allMembers')} (${members.length})`}
@@ -88,12 +129,18 @@ export default function Deposits() {
           ))}
         </select>
         {selectedMemberFilter && (
-          <button
-            onClick={() => setSelectedMemberFilter('')}
-            className="text-[10px] text-slate-400 hover:text-slate-700 font-bold px-1.5 py-1"
+          <LoadingButton
+            minLoaderMs={120}
+            onClick={() => {
+              setSelectedMemberFilter('');
+              setSelectedWeekKey(null);
+              toast.success(t('filterCleared'));
+            }}
+            spinnerClassName="w-3 h-3"
+            className="text-[10px] text-slate-400 hover:text-slate-700 font-bold px-1.5 py-1 flex items-center space-x-1 cursor-pointer shrink-0"
           >
-            Clear
-          </button>
+            <span>Clear</span>
+          </LoadingButton>
         )}
       </div>
 
@@ -104,188 +151,209 @@ export default function Deposits() {
       )}
 
       {/* Total Filtered Metric */}
-      <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center justify-between">
-        <div className="space-y-0.5">
+      <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center justify-between gap-2">
+        <div className="space-y-0.5 min-w-0">
           <span className="text-xs font-bold text-emerald-900 block">
             {t('totalDeposits')}:
           </span>
           {selectedMemberFilter && (
-            <span className="text-[10px] text-emerald-700 font-medium block">
+            <span className="text-[10px] text-emerald-700 font-medium block truncate">
               Filtered for: {members.find((m) => m.id === selectedMemberFilter)?.name}
             </span>
           )}
         </div>
-        <span className="text-base font-black text-emerald-800">
+        <span className="text-base font-black text-emerald-800 shrink-0">
           {formatCurrency(totalFilteredDeposits)}
         </span>
       </div>
 
-      {/* Deposit Cards List */}
-      <div className="space-y-2.5 pb-24">
+      {/* Weekly Visualization Card */}
+      <WeeklyVisualization
+        weeks={chartWeeks}
+        selectedWeekKey={selectedWeekKey}
+        onSelectWeek={setSelectedWeekKey}
+        theme="emerald"
+      />
+
+      {/* Weekly Deposit Cards List */}
+      <div className="space-y-4 pb-24">
         <div className="flex items-center justify-between px-1">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            {t('depositList')} ({filteredDeposits.length})
+            {t('depositList')} ({visibleWeeks.reduce((s, w) => s + w.count, 0)})
           </span>
         </div>
 
-        {filteredDeposits.length === 0 ? (
+        {visibleWeeks.length === 0 ? (
           <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
             {t('noDeposits')}
           </div>
         ) : (
-          filteredDeposits.map((dep) => {
-            const hasMemberBreakdown =
-              Array.isArray(dep.memberDeposits) && dep.memberDeposits.length > 0;
-            const isExpanded = expandedDepositId === dep.id;
+          visibleWeeks.map((week) => (
+            <div key={week.weekKey} className="space-y-2">
+              <WeekSectionHeader
+                weekNumber={week.weekNumber}
+                weekStartYMD={week.weekStartYMD}
+                weekEndYMD={week.weekEndYMD}
+                totalAmount={week.totalAmount}
+                count={week.count}
+                theme="emerald"
+              />
 
-            // If filtered by member, get specific contribution
-            const specificMemberDep = selectedMemberFilter
-              ? dep.memberDeposits?.find((m) => m.memberId === selectedMemberFilter)
-              : null;
+              {week.items.map((dep) => {
+                const hasMemberBreakdown =
+                  Array.isArray(dep.memberDeposits) && dep.memberDeposits.length > 0;
+                const isExpanded = expandedDepositId === dep.id;
 
-            return (
-              <div
-                key={dep.id}
-                className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden transition-all hover:border-emerald-300"
-              >
-                {/* Main Card Header */}
-                <div
-                  onClick={() => hasMemberBreakdown && toggleExpand(dep.id)}
-                  className={`p-3.5 flex items-center justify-between ${
-                    hasMemberBreakdown ? 'cursor-pointer hover:bg-slate-50/70' : ''
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2.5 bg-emerald-100/70 text-emerald-700 rounded-xl">
-                      <PiggyBank className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-extrabold text-slate-800 flex items-center space-x-2">
-                        <span>{dep.note || t('note')}</span>
-                        {dep.totalStamps ? (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.2 rounded-md flex items-center space-x-1">
-                            <Coins className="w-2.5 h-2.5 text-emerald-600" />
-                            <span>{dep.totalStamps} stamps</span>
-                          </span>
-                        ) : null}
+                const specificMemberDep = selectedMemberFilter
+                  ? dep.memberDeposits?.find((m) => m.memberId === selectedMemberFilter)
+                  : null;
+
+                return (
+                  <div
+                    key={dep.id}
+                    className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden transition-all hover:border-emerald-300"
+                  >
+                    {/* Main Card Header */}
+                    <div
+                      onClick={() => hasMemberBreakdown && toggleExpand(dep.id)}
+                      className={`p-3.5 flex items-center justify-between gap-2 ${
+                        hasMemberBreakdown ? 'cursor-pointer hover:bg-slate-50/70' : ''
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="p-2.5 bg-emerald-100/70 text-emerald-700 rounded-xl shrink-0">
+                          <PiggyBank className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-extrabold text-slate-800 flex items-center flex-wrap gap-1.5">
+                            <span className="truncate">{dep.note || t('note')}</span>
+                            {dep.totalStamps ? (
+                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-flex items-center space-x-1 shrink-0">
+                                <Coins className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>{dep.totalStamps} stamps</span>
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-400 mt-0.5">
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="w-3 h-3 text-slate-400" />
+                              <span>{formatDate(dep.date, language)}</span>
+                            </div>
+                            {hasMemberBreakdown && (
+                              <>
+                                <span>•</span>
+                                <span className="text-emerald-700 font-semibold flex items-center space-x-1">
+                                  <Users className="w-3 h-3" />
+                                  <span>{dep.memberDeposits.length} members</span>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="flex items-center space-x-2 text-[11px] text-slate-400 mt-0.5">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="w-3 h-3 text-slate-400" />
-                          <span>{formatDate(dep.date, language)}</span>
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <div className="text-right">
+                          <div className="text-sm font-black text-emerald-700">
+                            +{formatCurrency(specificMemberDep ? specificMemberDep.amount : dep.amount)}
+                          </div>
+                          {specificMemberDep && (
+                            <div className="text-[10px] text-slate-400">
+                              {specificMemberDep.stamps} stamps
+                            </div>
+                          )}
                         </div>
                         {hasMemberBreakdown && (
-                          <>
-                            <span>•</span>
-                            <span className="text-emerald-700 font-semibold flex items-center space-x-1">
-                              <Users className="w-3 h-3" />
-                              <span>{dep.memberDeposits.length} members</span>
-                            </span>
-                          </>
+                          <div className="text-slate-400">
+                            {isExpanded ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center space-x-2">
-                    <div className="text-right">
-                      <div className="text-sm font-black text-emerald-700">
-                        +
-                        {formatCurrency(
-                          specificMemberDep ? specificMemberDep.amount : dep.amount
-                        )}
-                      </div>
-                      {specificMemberDep && (
-                        <div className="text-[10px] text-slate-400">
-                          {specificMemberDep.stamps} stamps
+                    {/* Collapsible Member Breakdown Table */}
+                    {isExpanded && hasMemberBreakdown && (
+                      <div className="bg-slate-50 border-t border-slate-200 p-3.5 space-y-2 animate-fadeIn">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-1">
+                          <span className="uppercase tracking-wider">
+                            {t('memberContribution')}
+                          </span>
+                          <span className="text-emerald-700">
+                            Total: {formatCurrency(dep.amount)}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                    {hasMemberBreakdown && (
-                      <div className="text-slate-400">
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4" />
-                        )}
+
+                        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto text-xs">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-100 text-slate-600 text-[10px] font-bold uppercase border-b border-slate-200">
+                                <th className="py-2 px-3">Member</th>
+                                <th className="py-2 px-2 text-center">Stamps</th>
+                                <th className="py-2 px-3 text-right">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {dep.memberDeposits.map((md) => (
+                                <tr
+                                  key={md.memberId}
+                                  className={`hover:bg-slate-50 ${
+                                    selectedMemberFilter === md.memberId
+                                      ? 'bg-emerald-50/70 font-bold'
+                                      : ''
+                                  }`}
+                                >
+                                  <td className="py-1.5 px-3 text-slate-800">
+                                    <span className="font-semibold">{md.memberName}</span>
+                                  </td>
+                                  <td className="py-1.5 px-2 text-center text-slate-600">
+                                    <span className="inline-block bg-slate-100 px-2 py-0.5 rounded text-[11px] font-bold">
+                                      {md.stamps}
+                                    </span>
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right text-emerald-700 font-bold">
+                                    {formatCurrency(md.amount)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
-
-                {/* Collapsible Member Breakdown Table */}
-                {isExpanded && hasMemberBreakdown && (
-                  <div className="bg-slate-50 border-t border-slate-200 p-3.5 space-y-2 animate-fadeIn">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-1">
-                      <span className="uppercase tracking-wider">
-                        {t('memberContribution')}
-                      </span>
-                      <span className="text-emerald-700">
-                        Total: {formatCurrency(dep.amount)}
-                      </span>
-                    </div>
-
-                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden text-xs">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-100 text-slate-600 text-[10px] font-bold uppercase border-b border-slate-200">
-                            <th className="py-2 px-3">Member</th>
-                            <th className="py-2 px-2 text-center">Stamps</th>
-                            <th className="py-2 px-3 text-right">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-medium">
-                          {dep.memberDeposits.map((md) => (
-                            <tr
-                              key={md.memberId}
-                              className={`hover:bg-slate-50 ${
-                                selectedMemberFilter === md.memberId
-                                  ? 'bg-emerald-50/70 font-bold'
-                                  : ''
-                              }`}
-                            >
-                              <td className="py-1.5 px-3 text-slate-800">
-                                <span className="font-semibold">{md.memberName}</span>
-                              </td>
-                              <td className="py-1.5 px-2 text-center text-slate-600">
-                                <span className="inline-block bg-slate-100 px-2 py-0.5 rounded text-[11px] font-bold">
-                                  {md.stamps}
-                                </span>
-                              </td>
-                              <td className="py-1.5 px-3 text-right text-emerald-700 font-bold">
-                                {formatCurrency(md.amount)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })
+                );
+              })}
+            </div>
+          ))
         )}
       </div>
 
       {/* Floating Add Deposit Button - Fixed directly above bottom nav */}
-      <div className="fixed bottom-20 left-0 right-0 max-w-md mx-auto px-4 pointer-events-none z-40 flex justify-end">
-        <button
-          type="button"
-          onClick={() => {
-            if (members.length === 0) {
-              alert(t('noMembersWarning'));
-              return;
-            }
-            setModalOpen(true);
-          }}
-          className="pointer-events-auto bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white px-4 py-3 rounded-full shadow-2xl flex items-center space-x-2 transition-all border border-emerald-600 cursor-pointer"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="text-xs font-bold pr-1">{t('addDeposit')}</span>
-        </button>
-      </div>
+      {!modalOpen && (
+        <div className="fixed bottom-20 left-0 right-0 max-w-md mx-auto px-4 pointer-events-none z-20 flex justify-end">
+          <LoadingButton
+            type="button"
+            minLoaderMs={140}
+            onClick={() => {
+              if (members.length === 0) {
+                toast.error(t('noMembersWarning'));
+                return;
+              }
+              setModalOpen(true);
+              toast.success(`${t('addDeposit')} — ${t('modalOpened')}`);
+            }}
+            className="pointer-events-auto bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white px-4 py-3 rounded-full shadow-2xl flex items-center space-x-2 transition-all border border-emerald-600 cursor-pointer"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="text-xs font-bold pr-1">{t('addDeposit')}</span>
+          </LoadingButton>
+        </div>
+      )}
 
       {/* Quick Action Modal */}
       <QuickActionModal

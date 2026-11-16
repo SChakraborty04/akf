@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, PiggyBank, HandCoins, RotateCcw, BookOpen, Users } from 'lucide-react';
+import { Home, PiggyBank, HandCoins, RotateCcw, Users } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function BottomNav() {
@@ -11,13 +11,12 @@ export default function BottomNav() {
     { path: '/deposits', label: t('navDeposits'), icon: PiggyBank },
     { path: '/loans', label: t('navLoans'), icon: HandCoins },
     { path: '/repayments', label: t('navRepayments'), icon: RotateCcw },
-    { path: '/ledger', label: t('navLedger'), icon: BookOpen },
-    { path: '/profile', label: t('navProfile'), icon: Users }
+    { path: '/members', label: t('navMembers'), icon: Users },
   ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg max-w-md mx-auto">
-      <div className="grid grid-cols-6 h-16 px-1">
+      <div className="grid grid-cols-5 h-16 px-1">
         {navItems.map((item) => {
           const IconComponent = item.icon;
           return (
@@ -34,7 +33,9 @@ export default function BottomNav() {
             >
               {({ isActive }) => (
                 <>
-                  <IconComponent className={`w-5 h-5 ${isActive ? 'text-emerald-700 stroke-[2.5]' : 'stroke-2'}`} />
+                  <IconComponent
+                    className={`w-5 h-5 ${isActive ? 'text-emerald-700 stroke-[2.5]' : 'stroke-2'}`}
+                  />
                   <span className="text-[10px] leading-none tracking-tight truncate w-full px-0.5">
                     {item.label}
                   </span>

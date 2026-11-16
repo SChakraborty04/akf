@@ -1,11 +1,25 @@
 import React from 'react';
 import { Calendar, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
+import { getLocalTodayYMD } from '../utils/dates';
+import LoadingButton from './LoadingButton';
 
 export default function DateRangeFilter({ startDate, setStartDate, endDate, setEndDate, onClear }) {
   const { t } = useLanguage();
+  const toast = useToast();
+  const todayYMD = getLocalTodayYMD();
 
   const isFiltered = Boolean(startDate || endDate);
+
+  const handleClear = () => {
+    if (!isFiltered) {
+      toast.error(t('noFilterActive'));
+      return;
+    }
+    onClear();
+    toast.success(t('dateFilterCleared'));
+  };
 
   return (
     <div className="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-200 mb-4 space-y-2">
@@ -15,13 +29,14 @@ export default function DateRangeFilter({ startDate, setStartDate, endDate, setE
           <span>{t('filterByDate')}</span>
         </div>
         {isFiltered && (
-          <button
-            onClick={onClear}
-            className="flex items-center space-x-1 text-[11px] text-rose-600 hover:text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded-md hover:bg-rose-100 transition-colors"
+          <LoadingButton
+            onClick={handleClear}
+            spinnerClassName="w-3 h-3"
+            className="flex items-center space-x-1 text-[11px] text-rose-600 hover:text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
           >
             <RefreshCw className="w-3 h-3" />
             <span>{t('clearFilter')}</span>
-          </button>
+          </LoadingButton>
         )}
       </div>
 
@@ -32,6 +47,7 @@ export default function DateRangeFilter({ startDate, setStartDate, endDate, setE
           </label>
           <input
             type="date"
+            max={todayYMD}
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-1 focus:ring-emerald-600 focus:outline-none"
@@ -43,6 +59,7 @@ export default function DateRangeFilter({ startDate, setStartDate, endDate, setE
           </label>
           <input
             type="date"
+            max={todayYMD}
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-1 focus:ring-emerald-600 focus:outline-none"
